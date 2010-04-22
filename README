@@ -18,7 +18,7 @@ same program.
 
 That said, a lispy core dialect is provided which has support for
 fexprs, continuations, keyed dynamic variables, and an extensive pure
-functional subset. This dialect prioratizes being complete,
+functional subset. This dialect prioritizes being complete,
 convenient, and adaptable to new paradigms, in that order, in the hope
 that this approach will promote the development and interoperability
 of further dialects which emphasize other language qualities such as
