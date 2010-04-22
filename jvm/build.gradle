@@ -1,0 +1,38 @@
+// build.gradle
+//
+// Copyright 2010 Ross Angle
+//
+// This file is part of JVM-Blade.
+//
+// JVM-Blade is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published
+// by the Free Software Foundation, either version 3 of the License,
+// or (at your option) any later version.
+//
+// JVM-Blade is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with JVM-Blade.  If not, see <http://www.gnu.org/licenses/>.
+
+
+// Create everyday tasks. The JVM-Blade project layout is arranged
+// according to the default Gradle conventions just so that we don't
+// need any more configuration than this. Some of the most useful
+// tasks defined this way are "build", "clean", "eclipse", and
+// "eclipseClean".
+//
+// Since Gradle's Groovy plugin doesn't specify the Groovy
+// implementation for us, we go get one from the Maven repository.
+// Right now we're using Groovy 1.7.0 rather than 1.7.2 in order to
+// match up with the version Eclipse's Groovy plugin uses.
+//
+apply plugin: 'eclipse'
+apply plugin: 'groovy'
+repositories { mavenCentral() }
+dependencies { groovy 'org.codehaus.groovy:groovy:1.7.0' }
+
+// Make sure the jar is named blade.jar rather than jvm.jar.
+archivesBaseName = 'blade'
