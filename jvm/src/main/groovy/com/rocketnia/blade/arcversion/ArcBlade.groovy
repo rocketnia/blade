@@ -1,4 +1,4 @@
-// BladeSandbox.groovy
+// CurrentArc.groovy
 //
 // Copyright 2010 Ross Angle
 //
@@ -17,14 +17,14 @@
 // You should have received a copy of the GNU General Public License
 // along with JVM-Blade.  If not, see <http://www.gnu.org/licenses/>.
 
+// This file is an almost direct port of JVM-Blade's
+// notes/arcblade.arc to Groovy. Some of the mechanisms change
+// because, for instance, Groovy actually has classes. The rest of
+// JVM-Blade takes off from here, but may incorporate improvements
+// and extra features which haven't been ported back to Arc.
 
-// At the moment, this file is almost an exact duplicate of the source
-// to com.rocketnia.blade.arcversion.ArcBlade. As development
-// continues, the contents of this file should split apart into other,
-// less experimental files.
 
-
-package com.rocketnia.blade
+package com.rocketnia.blade.arcversion
 
 
 interface Blade {}
@@ -96,7 +96,7 @@ class CalcResult implements Calc { Blade value }
 // indicating whether any advancement actually happened. The Calc will
 // be either a CalcResult or a CalcHardAsk. However, it will never be
 // a CalcHardAsk for which getRef already returns a filled reference.
-def advanceCalcRepeatedly( Calc calc, Closure getRef )
+def CurrentArcalcRepeatedly( Calc calc, Closure getRef )
 {
 	def refIsSet = { bladeRefIsSetDirect getRef( it ) }
 	
@@ -537,6 +537,3 @@ Blade bladeTopLevel( Set< Lead > initialLeads )
 				"There was a dependency loop." )
 	}
 }
-
-
-println "Hello, Blade!"
