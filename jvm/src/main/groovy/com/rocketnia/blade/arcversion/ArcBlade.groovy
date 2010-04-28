@@ -307,7 +307,7 @@ class SigBase implements Blade {
 	synchronized static SigBase getInstance()
 	{
 		if ( instance == null )
-			instance = new NamespaceReducer()
+			instance = new SigBase()
 		
 		return instance
 	}
@@ -329,35 +329,29 @@ class IsBox< T > {
 }
 
 class SigMap {
-	private Map< IsBox< Sig >, ? > entries = [:]
+	private Map< IsBox< Blade >, ? > entries = [:]
 	
-	def getAt( Sig key ) { entries[ new IsBox< Sig >( key ) ] }
+	def getAt( Blade key ) { entries[ new IsBox< Blade >( key ) ] }
 	
 	int size() { entries.size() }
 	
-	Set keyset() { entries.keyset()*.value as Set }
+	Set< IsBox< Blade > > keySet() { entries.keySet()*.value as Set }
 	
-	def setAt( Sig key, value )
-		{ entries[ new IsBox< Sig >( key ) ] = value }
+	def setAt( Blade key, value )
+		{ entries[ new IsBox< Blade >( key ) ] = value }
 	
-	def orSet( Sig key, Closure calculation )
+	List push( Blade key, elem )
 	{
-		def keyBox = new IsBox< Sig >( key );
-		return entries[ keyBox ] ||
-			(entries[ keyBox ] = calculation())
-	}
-	
-	def push( Sig key, elem )
-	{
-		def keyBox = new IsBox< Sig >( key );
+		def keyBox = new IsBox< Blade >( key );
 		return entries[ keyBox ] =
 			[ elem ] + (entries[ keyBox ] ?: [])
 	}
 	
-	boolean containsKey( Sig key )
-		{ entries.containsKey new IsBox< Sig >( key ) }
+	boolean containsKey( Blade key )
+		{ entries.containsKey new IsBox< Blade >( key ) }
 	
-	def remove( Sig key ) { entries.remove new IsBox< Sig >( key ) }
+	boolean remove( Blade key )
+		{ entries.remove new IsBox< Blade >( key ) }
 }
 
 class BladeSet implements Blade { Set< Blade > contents }
@@ -370,9 +364,8 @@ class LeadInfo { Lead lead; List< Blade > promises = [] }
 // reduced value associated with SigBase.instance, which usually turns
 // out to be a BladeNamespace. Even if the return value can be
 // determined early, the leads will still be followed to their
-// conclusions so that promise breaking can be detected, and while
-// those are being looked for, a dependency loop may be detected
-// instead.
+// conclusions so that promise breaking can be detected, and as those
+// are being looked for, a dependency loop may be detected instead.
 Blade bladeTopLevel( Set< Lead > initialLeads )
 {
 	Set< LeadInfo > leadInfos =
@@ -383,10 +376,10 @@ Blade bladeTopLevel( Set< Lead > initialLeads )
 	SigMap reducers = new SigMap()
 	SigMap contribs = new SigMap()
 	
-	def getRef = { Sig sig -> refs[ sig ] ?: let {
+	def getRef = { Blade sig -> refs[ sig ] ?: let {
 		
 		for ( ancestor in sigAncestors( sig ).tail() )
-			refs.orSet( ancestor ) { Ref.to sig }
+			refs[ ancestor ] ?: (refs[ ancestor ] = Ref.to( sig ))
 		
 		refs[ sig ] = Ref.to( sig )
 	} }
@@ -479,7 +472,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads )
 			if ( advanceLead( leadInfo ) )
 				didAnything = true
 		
-		for ( sig in reductions.keyset() )
+		for ( sig in reductions.keySet() )
 			if ( advanceReduction( sig ) )
 				didAnything = true
 		
@@ -487,7 +480,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads )
 			didAnything = true
 		
 		int oldSize = refs.size()
-		for ( sig in refs.keyset() )
+		for ( sig in refs.keySet() )
 		{
 			if (
 				!reducers.containsKey( sig )
@@ -504,7 +497,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads )
 				reducer, namespaceReducer ) )
 			{
 				def kids =
-					refs.keyset().findAll { sigIsParent sig, it }
+					refs.keySet().findAll { sigIsParent sig, it }
 				
 				if ( !kids.every( refIsSet ) )
 					continue
@@ -529,7 +522,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads )
 		
 		didAnything = didAnything || refs.size() != oldSize
 		
-		if ( leadInfos.empty && refs.keyset().every( refIsSet ) )
+		if ( leadInfos.empty && refs.keySet().every( refIsSet ) )
 			return bladeDerefSoft( getRef( SigBase.instance ) )
 		
 		if ( !didAnything )
