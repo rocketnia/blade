@@ -84,6 +84,14 @@ class LeadCalc extends Lead {
 	Blade setCalc( Blade val ) { set "calc", val }
 }
 
+// A lead which will continue as two separate leads.
+class LeadSplit extends Lead {
+	Blade getFirst() { get "first" }
+	Blade setFirst( Blade val ) { set "first", val }
+	Blade getSecond() { get "second" }
+	Blade setSecond( Blade val ) { set "second", val }
+}
+
 
 abstract class Calc extends RefMap {}
 
@@ -227,8 +235,8 @@ def advanceCalcRepeatedly(
 
 // This returns a two-element list containing a Lead and a boolean
 // indicating whether any advancement actually happened. The Lead will
-// be either a LeadEnd, a LeadContrib, or a LeadCalc whose inner Calc
-// is a valid result for
+// be either a LeadEnd, a LeadSplit, a LeadContrib, or a LeadCalc
+// whose inner Calc is a valid result for
 // { a, b, c -> advanceCalcRepeatedly( a, b, c )[ 0 ] }. However, it
 // will only be a LeadContrib if none of the lead's promises reject
 // the sig and at least one of them requires an unsatisfied hard ask.
@@ -260,7 +268,9 @@ def advanceLeadRepeatedly(
 	{
 		switch ( lead )
 		{
-		case LeadEnd: return [ lead, didAnything ]
+		case LeadEnd:
+		case LeadSplit:
+			return [ lead, didAnything ]
 			
 		case LeadErr:
 			def error = ((LeadErr)lead).error
@@ -455,7 +465,7 @@ class BladeSet implements Blade { Set< Blade > contents }
 
 def let( Closure f ) { f() }
 
-class LeadInfo { Lead lead; List< Blade > promises = [] }
+class LeadInfo { Blade lead; List< Blade > promises = [] }
 
 // This takes a bunch of initial Leads, follows them, and returns the
 // reduced value associated with the sigBase parameter. Even if the
@@ -492,7 +502,6 @@ class LeadInfo { Lead lead; List< Blade > promises = [] }
 // to have any functionality besides identity; they can each be given
 // as "new Blade() {}" if there's no more appropriate alternative.
 //
-// TODO: Add support for Lead splitting.
 // TODO: Add support for one or more constant reducers. Maybe this can
 // be built in implicitly, so that any reducer that doesn't hard-ask
 // for its contribution parameter can be treated as a constant
@@ -635,8 +644,25 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 		boolean didAnything = false
 		
 		for ( leadInfo in leadInfos )
-			if ( advanceLead( leadInfo ) )
-				didAnything = true
+		{
+			def lead = leadInfo.lead
+			if ( lead in Lead )
+			{
+				if ( advanceLead( leadInfo ) )
+					didAnything = true
+			}
+			else if ( lead in Ref )
+			{
+				if ( Refs.isSetDirect( lead ) )
+				{
+					leadInfo.lead = Refs.derefSoft( lead )
+					
+					didAnything = true
+				}
+			}
+			else throw new RuntimeException(
+				"A LeadSplit split into at least one non-Lead." )
+		}
 		
 		for ( sig in reductions.keySet() )
 			if ( advanceReduction( sig ) )
@@ -644,6 +670,25 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 		
 		if ( leadInfos.removeAll { it.lead in LeadEnd } )
 			didAnything = true
+		
+		for ( LeadInfo leadInfo in leadInfos.clone() )
+		{
+			def lead = leadInfo.lead
+			
+			if ( !(lead in LeadSplit) )
+				continue
+			
+			def lead2 = (LeadSplit)lead
+			def promises = leadInfo.promises
+			
+			leadInfos.remove leadInfo
+			leadInfos.add new LeadInfo(
+				lead: lead2.first, promises: promises )
+			leadInfos.add new LeadInfo(
+				lead: lead2.second, promises: promises )
+			
+			didAnything = true
+		}
 		
 		int oldSize = refs.size()
 		for ( sig in refs.keySet() )
