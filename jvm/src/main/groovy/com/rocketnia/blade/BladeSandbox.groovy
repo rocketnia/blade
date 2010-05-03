@@ -106,12 +106,11 @@ class CalcSoftAsk extends Calc {
 	Blade setNext( Blade val ) { set "next", val }
 }
 
-// A demand for the value of sig to be mutated into the existing soft
-// references to it. The next field is a nullary Blade function that
-// will return a new Calc.
+// A demand for the given ref to be resolved. The next field is a
+// nullary Blade function that will return a new Calc.
 class CalcHardAsk extends Calc {
-	Blade getSig() { get "sig" }
-	Blade setSig( Blade val ) { set "sig", val }
+	Blade getRef() { get "ref" }
+	Blade setRef( Blade val ) { set "ref", val }
 	Blade getNext() { get "next" }
 	Blade setNext( Blade val ) { set "next", val }
 }
@@ -149,7 +148,7 @@ def advanceCalcRepeatedly(
 	def refIsSet = { Refs.isSetDirect getRef( it ) }
 	
 	def harden = { [
-		new CalcHardAsk( sig: it.sig, next: BuiltIn.of { calc } ),
+		new CalcHardAsk( ref: it.ref, next: BuiltIn.of { calc } ),
 		true
 	] }
 	
@@ -170,9 +169,9 @@ def advanceCalcRepeatedly(
 			def calc2 = (CalcSoftAsk)calc
 			
 			def sig = calc2.sig
-			def neededSig = Refs.anyNeededSig( sig )
-			if ( !null.is( neededSig ) )
-				return harden( sig: neededSig )
+			def neededRef = Refs.anyNeededRef( sig )
+			if ( !null.is( neededRef ) )
+				return harden( ref: neededRef )
 			
 			calc = new CalcCalc(
 				calc: calcCall( calc2.next, [ getRef( sig ) ] ) )
@@ -181,12 +180,9 @@ def advanceCalcRepeatedly(
 		case CalcHardAsk:
 			def calc2 = (CalcHardAsk)calc
 			
-			def sig = calc2.sig
-			def neededSig = Refs.anyNeededSig( sig )
-			if ( !null.is( neededSig ) )
-				return harden( sig: neededSig )
+			def ref = calc2.ref
 			
-			if ( !refIsSet( sig ) )
+			if ( !refIsSet( ref ) )
 				return [ calc, didAnything ]
 			
 			calc = new CalcCalc( calc: calcCall( calc2.next, [] ) )
@@ -246,11 +242,11 @@ def advanceCalcRepeatedly(
 // test the contribution against the lead's promises; this takes care
 // of that step already. The return value of addContrib should usually
 // be null, but in case the contribution is obstructed by a hard ask
-// when comparing reducers, it should return the sig which is asked
+// when comparing reducers, it should return the ref which is asked
 // for.
 //
 // The bladeTruthy parameter should be a closure that accepts a Blade
-// value and returns either true, false, or a hard-asked-for sig.
+// value and returns either true, false, or a hard-asked-for ref.
 //
 def advanceLeadRepeatedly(
 	Lead lead, Closure calcCall, Closure getRef, Closure addContrib,
@@ -260,7 +256,7 @@ def advanceLeadRepeatedly(
 	
 	def harden = { [
 		new LeadCalc( calc: new CalcHardAsk(
-			sig: it.sig, next: BuiltIn.of { calc } ) ),
+			ref: it.ref, next: BuiltIn.of { calc } ) ),
 		true
 	] }
 	
@@ -312,18 +308,18 @@ def advanceLeadRepeatedly(
 				return [ lead, didAnything ]
 			
 			
-			def neededSig = Refs.anyNeededSig( sig )
-			if ( !null.is( neededSig ) )
-				return harden( sig: neededSig )
+			def neededRef = Refs.anyNeededRef( sig )
+			if ( !null.is( neededRef ) )
+				return harden( sig: neededRef )
 			
 			def reducer = lead2.reducer
-			neededSig = Refs.anyNeededSig( reducer )
-			if ( !null.is( neededSig ) )
-				return harden( sig: neededSig )
+			neededRef = Refs.anyNeededRef( reducer )
+			if ( !null.is( neededRef ) )
+				return harden( ref: neededRef )
 			
-			neededSig = addContrib( sig, reducer, lead2.value )
-			if ( !null.is( neededSig ) )
-				return harden( sig: neededSig )
+			neededRef = addContrib( sig, reducer, lead2.value )
+			if ( !null.is( neededRef ) )
+				return harden( ref: neededRef )
 			
 			lead = new LeadCalc( calc: calcCall( lead2.next, [] ) )
 			break
@@ -377,7 +373,7 @@ def advanceLeadRepeatedly(
 
 
 // Note that these sigs are assumed to be non-Refs that satisfy
-// { null.is( Refs.anyNeededSigs( it ) ) }.
+// { null.is( Refs.anyNeededRef( it ) ) }.
 //
 // Both this and sigIsoRep are used, even if they are a bit redundant.
 //
@@ -413,7 +409,7 @@ def sigIsParent( Blade sig, Blade child )
 class BladeNamespace implements Blade { Map map }
 
 // Note that the sig is assumed to be a non-Ref that satisfies
-// { null.is( Refs.anyNeededSigs( it ) ) }.
+// { null.is( Refs.anyNeededRef( it ) ) }.
 List< Blade > sigIsoRep( Blade sig )
 {
 	def revResult = [];
@@ -484,7 +480,7 @@ class LeadInfo { Blade lead; List< Blade > promises = [] }
 //
 // The bladeTruthyInteractive parameter should be a closure that takes
 // a Blade value and a getRef closure and returns either true, false,
-// or a hard-asked-for sig. The getRef parameter will be a function
+// or a hard-asked-for ref. The getRef parameter will be a function
 // that translates sigs into their (possibly unfulfilled) Refs.
 //
 // The calcCall parameter should be a closure that takes a Blade value
@@ -522,9 +518,9 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	def getRef = { Blade sig -> refs[ sig ] ?: let {
 		
 		for ( ancestor in sigAncestors( sig ).tail() )
-			refs[ ancestor ] ?: (refs[ ancestor ] = Ref.to( sig ))
+			refs[ ancestor ] ?: (refs[ ancestor ] = new Ref())
 		
-		refs[ sig ] = Ref.to( sig )
+		return refs[ sig ] = new Ref()
 	} }
 	
 	def refIsSet = { Refs.isSetDirect getRef( it ) }
@@ -546,7 +542,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 		while ( isoCalc in CalcCalc )
 			isoCalc = ((CalcCalc)isoCalc).calc
 		
-		return ((CalcHardAsk)isoCalc).sig
+		return ((CalcHardAsk)isoCalc).ref
 	}
 	
 	def isNamespaceReducer = { reducerIso it, namespaceReducer }

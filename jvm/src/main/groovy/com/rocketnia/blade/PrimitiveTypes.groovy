@@ -30,12 +30,10 @@ class BuiltIn implements Blade {
 }
 
 class Ref implements Blade {
-	Blade sig, value
+	Blade value
 	
-	static to( sig ) { new Ref( sig: sig ) }
-	boolean isResolved() { null.is sig }
-	synchronized void resolve( Blade value )
-		{ sig = null; this.value = value }
+	boolean isResolved() { !null.is( value ) }
+	synchronized void resolve( Blade value ) { this.value = value }
 }
 
 final class Refs
@@ -85,7 +83,7 @@ final class Refs
 	static boolean isSetDirect( Blade ref )
 		{ ref in Ref && ((Ref)ref).isResolved() }
 	
-	static Blade anyNeededSig( Blade rootNode )
+	static Ref anyNeededRef( Blade rootNode )
 	{
 		Set allNodes = [ rootNode ]
 		List nodesToGo = [ rootNode ]
@@ -95,7 +93,7 @@ final class Refs
 			def node = derefSoft( nodesToGo.pop() )
 			
 			if ( node in Ref )
-				return ((Ref)node).sig
+				return node
 			
 			if ( node in RefMap )
 			{
