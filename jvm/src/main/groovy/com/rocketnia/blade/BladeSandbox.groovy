@@ -311,7 +311,7 @@ def advanceLeadRepeatedly(
 			{
 				def ( Calc advanced, did ) = advanceCalcRepeatedly(
 					calcCall( filter, [ sig ] ), calcCall, getRef )
-					
+				
 				if ( advanced in CalcHardAsk )
 					anyAsks = true
 				else
