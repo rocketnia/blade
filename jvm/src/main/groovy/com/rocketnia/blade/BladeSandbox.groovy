@@ -164,79 +164,86 @@ def advanceCalcRepeatedly(
 	int recursions = 0
 	
 	def ( Calc innerResult, boolean innerDid ) = let {
-	
-	boolean didAnything = false
-	
-	while ( true )
-	{
-		switch ( calc )
+		
+		boolean didAnything = false
+		
+		while ( true )
 		{
-		case CalcResult: return [ calc, didAnything ]
-			
-		case CalcErr:
-			def error = ((CalcErr)calc).error
-			if ( error in Ref ) return harden( error )
-			
-			throw new RuntimeException(
-				"A calculation resulted in this error: $error" )
-			
-		case CalcSoftAsk:
-			def calc2 = (CalcSoftAsk)calc
-			
-			def sig = calc2.sig
-			def neededRef = Refs.anyNeededRef( sig )
-			if ( !null.is( neededRef ) )
-				return harden( ref: neededRef )
-			
-			calc = new CalcCalc(
-				calc: calcCall( calc2.next, [ getRef( sig ) ] ) )
-			break
-			
-		case CalcHardAsk:
-			def calc2 = (CalcHardAsk)calc
-			
-			def ref = calc2.ref
-			
-			if ( !refIsSet( ref ) )
-				return [ calc, didAnything ]
-			
-			calc = new CalcCalc( calc: calcCall( calc2.next, [] ) )
-			break
-			
-		case CalcCalc:
-			def initialInnerCalc = ((CalcCalc)calc).calc
-			switch ( initialInnerCalc )
+			switch ( calc )
 			{
-			case Ref: return harden( initialInnerCalc )
+			case CalcResult: return [ calc, didAnything ]
 				
-			case CalcResult:
-				def value = ((CalcResult)initialInnerCalc).value
-				if ( value in Ref ) return harden( value )
+			case CalcErr:
+				def error = ((CalcErr)calc).error
+				if ( error in Ref ) return harden( error )
 				
-				// TODO: See if this would be better as a CalcErr
-				// instead.
-				if ( !(value in Calc) ) throw new RuntimeException(
-					"A CalcCalc's inner result wasn't a Calc." )
+				throw new RuntimeException(
+					"A calculation resulted in this error: $error" )
 				
-				calc = value
+			case CalcSoftAsk:
+				def calc2 = (CalcSoftAsk)calc
+				
+				def sig = calc2.sig
+				def neededRef = Refs.anyNeededRef( sig )
+				if ( !null.is( neededRef ) )
+					return harden( ref: neededRef )
+				
+				calc = new CalcCalc(
+					calc: calcCall( calc2.next, [ getRef( sig ) ] ) )
 				break
 				
-			default:
-				// TODO: Figure out the best way to treat inner
-				// errors with respect to their outer calculations.
-				calc = initialInnerCalc
-				recursions++
-				continue  // This avoids "didAnything = true" below.
+			case CalcHardAsk:
+				def calc2 = (CalcHardAsk)calc
+				
+				def ref = calc2.ref
+				
+				if ( !refIsSet( ref ) )
+					return [ calc, didAnything ]
+				
+				calc =
+					new CalcCalc( calc: calcCall( calc2.next, [] ) )
+				
+				break
+				
+			case CalcCalc:
+				def initialInnerCalc = ((CalcCalc)calc).calc
+				switch ( initialInnerCalc )
+				{
+				case Ref: return harden( initialInnerCalc )
+					
+				case CalcResult:
+					def value = ((CalcResult)initialInnerCalc).value
+					if ( value in Ref ) return harden( value )
+					
+					// TODO: See if this would be better as a CalcErr
+					// instead.
+					if ( !(value in Calc) )
+						throw new RuntimeException(
+							   "A CalcCalc's inner result wasn't a"
+							+ " Calc." )
+					
+					calc = value
+					break
+					
+				default:
+					// TODO: Figure out the best way to treat inner
+					// errors with respect to their outer
+					// calculations.
+					calc = initialInnerCalc
+					recursions++
+					
+					// This continue avoids "didAnything = true"
+					// below.
+					continue
+				}
+				break
+				
+			default: throw new RuntimeException(
+				"An unknown Calc type was encountered." )
 			}
-			break
 			
-		default: throw new RuntimeException(
-			"An unknown Calc type was encountered." )
+			didAnything = true
 		}
-		
-		didAnything = true
-	}
-	
 	}
 	
 	if ( !innerDid )
