@@ -678,7 +678,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 		return false
 	}
 	
-	getRef( sigBase )
+	getRef sigBase
 	
 	while ( true )
 	{
