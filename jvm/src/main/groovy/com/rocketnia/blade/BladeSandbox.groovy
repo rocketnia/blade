@@ -145,6 +145,8 @@ class CalcCalc extends Calc {
 def advanceCalcRepeatedly(
 	Calc calc, Closure calcCall, Closure getRef )
 {
+	def originalCalc = calc
+	
 	def refIsSet = { Refs.isSetDirect getRef( it ) }
 	
 	def harden = { [
@@ -152,7 +154,20 @@ def advanceCalcRepeatedly(
 		true
 	] }
 	
-	for ( boolean didAnything = false; ; didAnything = true )
+	
+	// We avoid recursion here so as to avoid JVM stack overflows.
+	// Instead of using recursion (for when calc is a CalcCalc), we do
+	// an iterative loop which increments the number of recursions
+	// that are happening, and then we do another iterative loop to
+	// unwind that pseudo-stack and determine the result.
+	
+	int recursions = 0
+	
+	def ( Calc innerResult, boolean innerDid ) = let {
+	
+	boolean didAnything = false
+	
+	while ( true )
 	{
 		switch ( calc )
 		{
@@ -207,26 +222,30 @@ def advanceCalcRepeatedly(
 				break
 				
 			default:
-				// TODO: Stop using recursion here. It can overflow
-				// the Java stack.
 				// TODO: Figure out the best way to treat inner
 				// errors with respect to their outer calculations.
-				def ( finalInnerCalc, innerDid ) =
-					advanceCalcRepeatedly(
-						initialInnerCalc, calcCall, getRef )
-				
-				if ( !innerDid )
-					return [ calc, didAnything ]
-				
-				calc = new CalcCalc( calc: finalInnerCalc )
-				break
+				calc = initialInnerCalc
+				recursions++
+				continue  // This avoids "didAnything = true" below.
 			}
 			break
 			
 		default: throw new RuntimeException(
 			"An unknown Calc type was encountered." )
 		}
+		
+		didAnything = true
 	}
+	
+	}
+	
+	if ( !innerDid )
+		return [ originalCalc, false ]
+	
+	recursions.
+		times { innerResult = new CalcCalc( calc: innerResult ) }
+	
+	return [ innerResult, true ]
 }
 
 // This returns a two-element list containing a Lead and a boolean
@@ -349,8 +368,6 @@ def advanceLeadRepeatedly(
 				break
 				
 			default:
-				// TODO: Stop using recursion here. It can overflow
-				// the Java stack.
 				// TODO: Figure out the best way to treat inner
 				// errors with respect to their outer calculations.
 				def ( finalInnerCalc, innerDid ) =
