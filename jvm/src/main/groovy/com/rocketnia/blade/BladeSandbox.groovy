@@ -510,17 +510,18 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	Set< LeadInfo > leadInfos =
 		initialLeads.collect { new LeadInfo( lead: it ) }
 	
-	SigMap refs = new SigMap()
+	SigMap reductionRefs = new SigMap()
 	SigMap reductions = new SigMap()
 	SigMap reducers = new SigMap()
 	SigMap contribs = new SigMap()
 	
-	def getRef = { Blade sig -> refs[ sig ] ?: let {
+	def getRef = { Blade sig -> reductionRefs[ sig ] ?: let {
 		
 		for ( ancestor in sigAncestors( sig ).tail() )
-			refs[ ancestor ] ?: (refs[ ancestor ] = new Ref())
+			reductionRefs[ ancestor ] ?:
+				(reductionRefs[ ancestor ] = new Ref())
 		
-		return refs[ sig ] = new Ref()
+		return reductionRefs[ sig ] = new Ref()
 	} }
 	
 	def refIsSet = { Refs.isSetDirect getRef( it ) }
@@ -686,8 +687,8 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 			didAnything = true
 		}
 		
-		int oldSize = refs.size()
-		for ( sig in refs.keySet() )
+		int oldSize = reductionRefs.size()
+		for ( sig in reductionRefs.keySet() )
 		{
 			if (
 				!reducers.containsKey( sig )
@@ -703,8 +704,8 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 			def namespacing = isNamespaceReducer( reducer )
 			if ( namespacing == true )
 			{
-				def kids =
-					refs.keySet().findAll { sigIsParent sig, it }
+				def kids = reductionRefs.
+					keySet().findAll { sigIsParent sig, it }
 				
 				if ( !kids.every( refIsSet ) )
 					continue
@@ -729,9 +730,10 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 			}
 		}
 		
-		didAnything = didAnything || refs.size() != oldSize
+		didAnything = didAnything || reductionRefs.size() != oldSize
 		
-		if ( leadInfos.empty && refs.keySet().every( refIsSet ) )
+		if ( leadInfos.empty &&
+			reductionRefs.keySet().every( refIsSet ) )
 			return Refs.derefSoft( getRef( sigBase ) )
 		
 		if ( !didAnything )
