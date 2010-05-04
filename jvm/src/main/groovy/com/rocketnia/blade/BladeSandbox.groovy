@@ -470,6 +470,18 @@ class LeadInfo { Blade lead; List< Blade > promises = [] }
 // detected, and as those breaches are being looked for, a dependency
 // loop may be detected instead.
 //
+// One special property of this process is that if a value can be
+// reduced without hard-asking for its contribution set, it can be
+// used before all its contributions have been collected. This means
+// that a constant function can be used as the reducer for a value
+// that is completely defined by a single declaration. This should be
+// useful for fundamental Blade values which are meant to be used very
+// often during top-level calculation, since it means they can be
+// immune to hard-ask/promise deadlock (where two or more declarations
+// hard-ask for values which other declarations in the set haven't
+// promised not to contribute to) rather than that deadlock showing up
+// as a potential dependency loop.
+//
 // The bladeReducerIsoMaker parameter should be a Groovy closure that
 // takes a getRef closure and returns a Blade functon. The getRef
 // parameter will be a function that translates sigs into the
@@ -498,11 +510,6 @@ class LeadInfo { Blade lead; List< Blade > promises = [] }
 // to have any functionality besides identity; they can each be given
 // as "new Blade() {}" if there's no more appropriate alternative.
 //
-// TODO: Add support for one or more constant reducers. Maybe this can
-// be built in implicitly, so that any reducer that doesn't hard-ask
-// for its contribution parameter can be treated as a constant
-// reducer.
-//
 Blade bladeTopLevel( Set< Lead > initialLeads,
 	Closure bladeReducerIsoMaker, Closure bladeTruthyInteractive,
 	Closure calcCall, Blade namespaceReducer, Blade sigBase )
@@ -513,6 +520,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	SigMap reductionRefs = new SigMap()
 	SigMap reductions = new SigMap()
 	SigMap reducers = new SigMap()
+	SigMap contribSetRefs = new SigMap()
 	SigMap contribs = new SigMap()
 	
 	def getRef = { Blade sig -> reductionRefs[ sig ] ?: let {
@@ -576,7 +584,13 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 		
 		def existingReducer = reducers[ sig ]
 		if ( null.is( existingReducer ) )
+		{
 			reducers[ sig ] = reducer
+			
+			def contribSetRef = new Ref()
+			contribSetRefs[ sig ] = contribSetRef
+			reductions[ sig ] = calcCall( reducer, [ contribSetRef ] )
+		}
 		else
 		{
 			def isoResult = reducerIso( reducer, existingReducer )
@@ -625,13 +639,19 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 			advanceCalcRepeatedly(
 				reductions[ sig ], calcCall, getRef )
 		
-		if ( !(result in CalcResult) )
-			return didAnything
+		if ( result in CalcResult )
+		{
+			reductions.remove sig
+			setRef sig, result.value
+			return true
+		}
+		else if ( didAnything )
+		{
+			reductions[ sig ] = result
+			return true
+		}
 		
-		reductions.remove sig
-		setRef sig, result.value
-		
-		return true
+		return false
 	}
 	
 	getRef( sigBase )
@@ -661,7 +681,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 				"A LeadSplit split into at least one non-Lead." )
 		}
 		
-		for ( sig in reductions.keySet() )
+		for ( sig in reductions.keySet().clone() )
 			if ( advanceReduction( sig ) )
 				didAnything = true
 		
@@ -688,7 +708,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 		}
 		
 		int oldSize = reductionRefs.size()
-		for ( sig in reductionRefs.keySet() )
+		for ( sig in reductionRefs.keySet().clone() )
 		{
 			if (
 				!reducers.containsKey( sig )
@@ -721,10 +741,8 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 			}
 			else if ( namespacing == false )
 			{
-				reductions[ sig ] = calcCall( reducer,
-					[ new BladeSet(
-						contents: contribs[ sig ] as Set ) ]
-				)
+				Refs.set contribSetRefs[ sig ],
+					new BladeSet( contents: contribs[ sig ] as Set )
 				
 				didAnything = true
 			}
@@ -733,7 +751,8 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 		didAnything = didAnything || reductionRefs.size() != oldSize
 		
 		if ( leadInfos.empty &&
-			reductionRefs.keySet().every( refIsSet ) )
+			reductionRefs.values().every( Refs.&isSetDirect ) &&
+			contribSetRefs.values().every( Refs.&isSetDirect ) )
 			return Refs.derefSoft( getRef( sigBase ) )
 		
 		if ( !didAnything )
