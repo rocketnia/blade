@@ -21,14 +21,6 @@
 package com.rocketnia.blade
 
 
-interface Blade {}
-
-class BuiltIn implements Blade {
-	def value
-	
-	static BuiltIn of( value ) { new BuiltIn( value: value ) }
-}
-
 class Ref implements Blade {
 	Blade value
 	

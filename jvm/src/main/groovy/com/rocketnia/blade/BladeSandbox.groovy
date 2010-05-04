@@ -163,7 +163,7 @@ def advanceCalcRepeatedly(
 	
 	int recursions = 0
 	
-	def ( Calc innerResult, boolean innerDid ) = let {
+	def ( Calc innerResult, boolean innerDid ) = Misc.let {
 		
 		boolean didAnything = false
 		
@@ -483,8 +483,6 @@ class SigMap {
 
 class BladeSet implements Blade { Set< Blade > contents }
 
-def let( Closure f ) { f() }
-
 class LeadInfo { Blade lead; List< Blade > promises = [] }
 
 // This takes a bunch of initial Leads, follows them, and returns the
@@ -547,7 +545,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	SigMap contribSetRefs = new SigMap()
 	SigMap contribs = new SigMap()
 	
-	def getRef = { Blade sig -> reductionRefs[ sig ] ?: let {
+	def getRef = { Blade sig -> reductionRefs[ sig ] ?: Misc.let {
 		
 		for ( ancestor in sigAncestors( sig ).tail() )
 			reductionRefs[ ancestor ] ?:
