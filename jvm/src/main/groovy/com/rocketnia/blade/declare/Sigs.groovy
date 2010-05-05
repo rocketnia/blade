@@ -79,11 +79,11 @@ final class Sigs
 		{
 			def aSig = (Sig)a, bSig = (Sig)b
 			
-			if ( aSig.derivative != bSig.derivative )
+			if ( aSig.getDerivative() != bSig.getDerivative() )
 				return false
 			
-			a = aSig.parent
-			b = bSig.parent
+			a = aSig.getParent()
+			b = bSig.getParent()
 		}
 		
 		return a == b
@@ -94,13 +94,13 @@ final class Sigs
 		List< Blade > revResult = [ sig ]
 		
 		while ( sig in Sig )
-			revResult.add sig = ((Sig)sig).parent
+			revResult.add sig = ((Sig)sig).getParent()
 		
 		return revResult.reverse()
 	}
 	
 	static boolean sigIsParent( Blade sig, Blade child )
-		{ sig in Sig && sigIso( ((Sig)sig).parent, child ) }
+		{ sig in Sig && sigIso( ((Sig)sig).getParent(), child ) }
 	
 	// Note that the sig is assumed to be a non-Ref that satisfies
 	// { null.is( Refs.anyNeededRef( it ) ) }.
@@ -111,8 +111,8 @@ final class Sigs
 		while ( sig in Sig )
 		{
 			def sigSig = (Sig)sig
-			revResult.add( sigSig.derivative )
-			sig = sigSig.parent
+			revResult.add( sigSig.getDerivative() )
+			sig = sigSig.getParent()
 		}
 		
 		revResult.add sig
