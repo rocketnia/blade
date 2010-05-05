@@ -26,6 +26,8 @@
 
 package com.rocketnia.blade
 
+import com.rocketnia.blade.declare.*
+
 
 // A sig is a list of values representing a path of namespaces.
 // Contributing to a sig is the same as contributing a contribution
@@ -37,362 +39,6 @@ class Sig extends RefMap {
 	Blade setDerivative( Blade val ) { set "derivative", val }
 	Blade getParent() { get "parent" }
 	Blade setParent( Blade val ) { set "parent", val }
-}
-
-
-abstract class Lead extends RefMap {}
-
-// A contribution of value to sig, expecting reducer to ultimately
-// reduce the values. The next field is a nullary Blade function that
-// will return a new Lead. Note that value can be a soft reference.
-class LeadContrib extends Lead {
-	Blade getSig() { get "sig" }
-	Blade setSig( Blade val ) { set "sig", val }
-	Blade getReducer() { get "reducer" }
-	Blade setReducer( Blade val ) { set "reducer", val }
-	Blade getValue() { get "value" }
-	Blade setValue( Blade val ) { set "value", val }
-	Blade getNext() { get "next" }
-	Blade setNext( Blade val ) { set "next", val }
-}
-
-// A promise not to contribute to any sig that doesn't satisfy the
-// filter. The next field is a nullary Blade function that will return
-// a new Lead.
-class LeadPromise extends Lead {
-	Blade getFilter() { get "filter" }
-	Blade setFilter( Blade val ) { set "filter", val }
-	Blade getNext() { get "next" }
-	Blade setNext( Blade val ) { set "next", val }
-}
-
-// The result of a lead that has errored out. Note that this has no
-// next continuation.
-class LeadErr extends Lead {
-	Blade getError() { get "error" }
-	Blade setError( Blade val ) { set "error", val }
-}
-
-// The result of a lead that has run its course. Note that this has no
-// next continuation.
-class LeadEnd extends Lead {}
-
-// A lead which will continue according to whatever Lead object is
-// returned from a Blade calculation.
-class LeadCalc extends Lead {
-	Blade getCalc() { get "calc" }
-	Blade setCalc( Blade val ) { set "calc", val }
-}
-
-// A lead which will continue as two separate leads.
-class LeadSplit extends Lead {
-	Blade getFirst() { get "first" }
-	Blade setFirst( Blade val ) { set "first", val }
-	Blade getSecond() { get "second" }
-	Blade setSecond( Blade val ) { set "second", val }
-}
-
-
-abstract class Calc extends RefMap {}
-
-// A request for a reference to the reduced value of sig. The value
-// isn't needed yet, so it can be filled in later using mutation. The
-// next field is a Blade function that will take the answer and return
-// a new Calc.
-class CalcSoftAsk extends Calc {
-	Blade getSig() { get "sig" }
-	Blade setSig( Blade val ) { set "sig", val }
-	Blade getNext() { get "next" }
-	Blade setNext( Blade val ) { set "next", val }
-}
-
-// A demand for the given ref to be resolved. The next field is a
-// nullary Blade function that will return a new Calc.
-class CalcHardAsk extends Calc {
-	Blade getRef() { get "ref" }
-	Blade setRef( Blade val ) { set "ref", val }
-	Blade getNext() { get "next" }
-	Blade setNext( Blade val ) { set "next", val }
-}
-
-// The result of a calc that has errored out. Note that this has no
-// next continuation.
-class CalcErr extends Calc {
-	Blade getError() { get "error" }
-	Blade setError( Blade val ) { set "error", val }
-}
-
-// The result of a calc that has run its course. Note that this has no
-// next continuation.
-class CalcResult extends Calc {
-	Blade getValue() { get "value" }
-	Blade setValue( Blade val ) { set "value", val }
-}
-
-// A calc which will continue according to whatever Calc object is
-// returned from a Blade calculation.
-class CalcCalc extends Calc {
-	Blade getCalc() { get "calc" }
-	Blade setCalc( Blade val ) { set "calc", val }
-}
-
-
-// This returns a two-element list containing a Calc and a boolean
-// indicating whether any advancement actually happened. The Calc will
-// be either a CalcResult, a CalcHardAsk, or a CalcCalc whose inner
-// Calc is also an allowable result. However, it will never be a
-// CalcHardAsk for which getRef already returns a filled reference.
-def advanceCalcRepeatedly(
-	Calc calc, Closure calcCall, Closure getRef )
-{
-	def originalCalc = calc
-	
-	def refIsSet = { Refs.isSetDirect getRef( it ) }
-	
-	def harden = { [
-		new CalcHardAsk( ref: it.ref, next: BuiltIn.of { calc } ),
-		true
-	] }
-	
-	
-	// We avoid recursion here so as to avoid JVM stack overflows.
-	// Instead of using recursion (for when calc is a CalcCalc), we do
-	// an iterative loop which increments the number of recursions
-	// that are happening, and then we do another iterative loop to
-	// unwind that pseudo-stack and determine the result.
-	
-	int recursions = 0
-	
-	def ( Calc innerResult, boolean innerDid ) = Misc.let {
-		
-		boolean didAnything = false
-		
-		while ( true )
-		{
-			switch ( calc )
-			{
-			case CalcResult: return [ calc, didAnything ]
-				
-			case CalcErr:
-				def error = ((CalcErr)calc).error
-				if ( error in Ref ) return harden( error )
-				
-				throw new RuntimeException(
-					"A calculation resulted in this error: $error" )
-				
-			case CalcSoftAsk:
-				def calc2 = (CalcSoftAsk)calc
-				
-				def sig = calc2.sig
-				def neededRef = Refs.anyNeededRef( sig )
-				if ( !null.is( neededRef ) )
-					return harden( ref: neededRef )
-				
-				calc = new CalcCalc(
-					calc: calcCall( calc2.next, [ getRef( sig ) ] ) )
-				break
-				
-			case CalcHardAsk:
-				def calc2 = (CalcHardAsk)calc
-				
-				def ref = calc2.ref
-				
-				if ( !refIsSet( ref ) )
-					return [ calc, didAnything ]
-				
-				calc =
-					new CalcCalc( calc: calcCall( calc2.next, [] ) )
-				
-				break
-				
-			case CalcCalc:
-				def initialInnerCalc = ((CalcCalc)calc).calc
-				switch ( initialInnerCalc )
-				{
-				case Ref: return harden( initialInnerCalc )
-					
-				case CalcResult:
-					def value = ((CalcResult)initialInnerCalc).value
-					if ( value in Ref ) return harden( value )
-					
-					// TODO: See if this would be better as a CalcErr
-					// instead.
-					if ( !(value in Calc) )
-						throw new RuntimeException(
-							   "A CalcCalc's inner result wasn't a"
-							+ " Calc." )
-					
-					calc = value
-					break
-					
-				default:
-					// TODO: Figure out the best way to treat inner
-					// errors with respect to their outer
-					// calculations.
-					calc = initialInnerCalc
-					recursions++
-					
-					// This continue avoids "didAnything = true"
-					// below.
-					continue
-				}
-				break
-				
-			default: throw new RuntimeException(
-				"An unknown Calc type was encountered." )
-			}
-			
-			didAnything = true
-		}
-	}
-	
-	if ( !innerDid )
-		return [ originalCalc, false ]
-	
-	recursions.
-		times { innerResult = new CalcCalc( calc: innerResult ) }
-	
-	return [ innerResult, true ]
-}
-
-// This returns a two-element list containing a Lead and a boolean
-// indicating whether any advancement actually happened. The Lead will
-// be either a LeadEnd, a LeadSplit, a LeadContrib, or a LeadCalc
-// whose inner Calc is a valid result for
-// { a, b, c -> advanceCalcRepeatedly( a, b, c )[ 0 ] }. However, it
-// will only be a LeadContrib if none of the lead's promises reject
-// the sig and at least one of them requires an unsatisfied hard ask.
-//
-// The addContrib parameter should be a function with side effects
-// that takes a sig, a reducer, and a contributed value. It shouldn't
-// test the contribution against the lead's promises; this takes care
-// of that step already. The return value of addContrib should usually
-// be null, but in case the contribution is obstructed by a hard ask
-// when comparing reducers, it should return the ref which is asked
-// for.
-//
-// The bladeTruthy parameter should be a closure that accepts a Blade
-// value and returns either true, false, or a hard-asked-for ref.
-//
-def advanceLeadRepeatedly(
-	Lead lead, Closure calcCall, Closure getRef, Closure addContrib,
-	Closure addPromise, Closure getPromises, Closure bladeTruthy )
-{
-	def refIsSet = { Refs.isSetDirect getRef( it ) }
-	
-	def harden = { [
-		new LeadCalc( calc: new CalcHardAsk(
-			ref: it.ref, next: BuiltIn.of { calc } ) ),
-		true
-	] }
-	
-	for ( boolean didAnything = false; ; didAnything = true )
-	{
-		switch ( lead )
-		{
-		case LeadEnd:
-		case LeadSplit:
-			return [ lead, didAnything ]
-			
-		case LeadErr:
-			def error = ((LeadErr)lead).error
-			if ( error in Ref ) return harden( error )
-			
-			throw new RuntimeException(
-				"A lead resulted in this error: $error" )
-			
-		case LeadContrib:
-			def lead2 = (LeadContrib)lead
-			
-			def sig = lead2.sig
-			
-			boolean anyAsks = false
-			for ( filter in getPromises() )
-			{
-				def ( Calc advanced, did ) = advanceCalcRepeatedly(
-					calcCall( filter, [ sig ] ), calcCall, getRef )
-				
-				if ( advanced in CalcHardAsk )
-					anyAsks = true
-				else
-				{
-					def truth =
-						bladeTruthy( ((CalcResult)advanced).value )
-					
-					// TODO: See if this would be better as a LeadErr
-					// instead.
-					if ( truth == false )
-						throw new RuntimeException(
-							   "A lead broke a promise not to"
-							+ " contribute to this sig: $lead2.sig" )
-					else if ( truth != true )
-						anyAsks = true
-				}
-			}
-			
-			if ( anyAsks )
-				return [ lead, didAnything ]
-			
-			
-			def neededRef = Refs.anyNeededRef( sig )
-			if ( !null.is( neededRef ) )
-				return harden( sig: neededRef )
-			
-			def reducer = lead2.reducer
-			neededRef = Refs.anyNeededRef( reducer )
-			if ( !null.is( neededRef ) )
-				return harden( ref: neededRef )
-			
-			neededRef = addContrib( sig, reducer, lead2.value )
-			if ( !null.is( neededRef ) )
-				return harden( ref: neededRef )
-			
-			lead = new LeadCalc( calc: calcCall( lead2.next, [] ) )
-			break
-			
-		case LeadPromise:
-			def lead2 = (LeadPromise)lead
-			addPromise lead2.filter
-			lead = calcCall( lead2.next, [] )
-			break
-			
-		case LeadCalc:
-			def initialInnerCalc = ((LeadCalc)lead).calc
-			switch ( initialInnerCalc )
-			{
-				case Ref: return harden( initialInnerCalc )
-				
-				case CalcResult:
-				def value = ((CalcResult)initialInnerCalc).value
-				if ( value in Ref ) return harden( value )
-				
-				// TODO: See if this would be better as a LeadErr
-				// instead.
-				if ( !(value in Lead) ) throw new RuntimeException(
-					"A LeadCalc's inner result wasn't a Lead." )
-				
-				lead = value
-				break
-				
-			default:
-				// TODO: Figure out the best way to treat inner
-				// errors with respect to their outer calculations.
-				def ( finalInnerCalc, innerDid ) =
-					advanceCalcRepeatedly(
-						initialInnerCalc, calcCall, getRef )
-				
-				if ( !innerDid )
-					return [ lead, didAnything ]
-				
-				lead = new LeadCalc( calc: finalInnerCalc )
-				break
-			}
-			break
-			
-		default: throw new RuntimeException(
-			"An unknown Lead type was encountered." )
-		}
-	}
 }
 
 
@@ -564,7 +210,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	
 	def reducerIso = { a, b ->
 		
-		def ( Calc isoCalc, did ) = advanceCalcRepeatedly(
+		def ( Calc isoCalc, did ) = Calcs.advanceCalcRepeatedly(
 			calcCall( bladeReducerIso, [ a, b ] ), calcCall, getRef )
 		
 		if ( isoCalc in CalcResult )
@@ -629,7 +275,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	
 	def promiseRejects1 = { filter, sig ->
 		
-		def ( Calc result, did ) = advanceCalcRepeatedly(
+		def ( Calc result, did ) = Calcs.advanceCalcRepeatedly(
 			calcCall( filter, [ sig ] ), calcCall, getRef )
 		
 		return result in CalcResult &&
@@ -643,7 +289,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	def advanceLead = { leadInfo ->
 		
 		def ( Lead newLead, boolean didAnything ) =
-			advanceLeadRepeatedly(
+			Leads.advanceLeadRepeatedly(
 				leadInfo.lead, calcCall, getRef, addContrib,
 				{ leadInfo.promises = [ it ] + leadInfo.promises },
 				{ -> leadInfo.promises },
@@ -658,7 +304,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	def advanceReduction = { sig ->
 		
 		def ( Calc result, boolean didAnything ) =
-			advanceCalcRepeatedly(
+			Calcs.advanceCalcRepeatedly(
 				reductions[ sig ], calcCall, getRef )
 		
 		if ( result in CalcResult )
