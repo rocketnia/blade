@@ -109,7 +109,7 @@ final class Leads
 		
 		def harden = { [
 			new LeadCalc( calc: new CalcHardAsk(
-				ref: it.ref, next: BuiltIn.of { calc } ) ),
+				ref: it.ref, next: BuiltIn.of { lead } ) ),
 			true
 		] }
 		
@@ -124,7 +124,7 @@ final class Leads
 			case LeadErr:
 				def error = ((LeadErr)lead).error
 				if ( error in Ref )
-					return harden( error )
+					return harden( ref: error )
 				
 				throw new RuntimeException(
 					"A lead resulted in this error: $error" )
@@ -168,7 +168,7 @@ final class Leads
 				
 				def neededRef = Refs.anyNeededRef( sig )
 				if ( !null.is( neededRef ) )
-					return harden( sig: neededRef )
+					return harden( ref: neededRef )
 				
 				def reducer = lead2.reducer
 				neededRef = Refs.anyNeededRef( reducer )
@@ -193,12 +193,12 @@ final class Leads
 				def initialInnerCalc = ((LeadCalc)lead).calc
 				switch ( initialInnerCalc )
 				{
-				case Ref: return harden( initialInnerCalc )
+				case Ref: return harden( ref: initialInnerCalc )
 					
 				case CalcResult:
 					def value = ((CalcResult)initialInnerCalc).value
 					if ( value in Ref )
-						return harden( value )
+						return harden( ref: value )
 					
 					// TODO: See if this would be better as a LeadErr
 					// instead.

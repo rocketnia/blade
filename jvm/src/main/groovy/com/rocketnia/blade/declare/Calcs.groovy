@@ -112,7 +112,7 @@ final class Calcs
 				case CalcErr:
 					def error = ((CalcErr)calc).error
 					if ( error in Ref )
-						return harden( error )
+						return harden( ref: error )
 					
 					throw new RuntimeException(
 						   "A calculation resulted in this error:"
@@ -147,14 +147,14 @@ final class Calcs
 					def initialInnerCalc = ((CalcCalc)calc).calc
 					switch ( initialInnerCalc )
 					{
-					case Ref: return harden( initialInnerCalc )
+					case Ref: return harden( ref: initialInnerCalc )
 						
 					case CalcResult:
 						def value =
 							((CalcResult)initialInnerCalc).value
 						
 						if ( value in Ref )
-							return harden( value )
+							return harden( ref: value )
 						
 						// TODO: See if this would be better as a
 						// CalcErr instead.
