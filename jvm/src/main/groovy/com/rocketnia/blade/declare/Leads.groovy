@@ -109,7 +109,7 @@ final class Leads
 		
 		def harden = { [
 			new LeadCalc( calc: new CalcHardAsk(
-				ref: it.ref, next: BuiltIn.of { lead } ) ),
+				ref: it, next: BuiltIn.of { lead } ) ),
 			true
 		] }
 		
@@ -122,9 +122,9 @@ final class Leads
 				return [ lead, didAnything ]
 				
 			case LeadErr:
-				def error = ((LeadErr)lead).error
+				def error = ((LeadErr)lead).getError()
 				if ( error in Ref )
-					return harden( ref: error )
+					return harden( error )
 				
 				throw new RuntimeException(
 					"A lead resulted in this error: $error" )
@@ -132,7 +132,7 @@ final class Leads
 			case LeadContrib:
 				def lead2 = (LeadContrib)lead
 				
-				def sig = lead2.sig
+				def sig = lead2.getSig()
 				
 				boolean anyAsks = false
 				for ( filter in getPromises() )
@@ -149,14 +149,15 @@ final class Leads
 					else
 					{
 						def truth = bladeTruthy(
-							((CalcResult)advanced).value )
+							((CalcResult)advanced).getValue() )
 						
 						// TODO: See if this would be better as a
 						// LeadErr instead.
 						if ( truth == false )
 						throw new RuntimeException(
 							   "A lead broke a promise not to"
-							+ " contribute to this sig: $lead2.sig" )
+							+ " contribute to this sig:"
+							+ " ${lead2.getSig()}" )
 						else if ( truth != true )
 							anyAsks = true
 					}
@@ -168,37 +169,41 @@ final class Leads
 				
 				def neededRef = Refs.anyNeededRef( sig )
 				if ( !null.is( neededRef ) )
-					return harden( ref: neededRef )
+					return harden( neededRef )
 				
-				def reducer = lead2.reducer
+				def reducer = lead2.getReducer()
 				neededRef = Refs.anyNeededRef( reducer )
 				if ( !null.is( neededRef ) )
-					return harden( ref: neededRef )
+					return harden( neededRef )
 				
-				neededRef = addContrib( sig, reducer, lead2.value )
+				neededRef =
+					addContrib( sig, reducer, lead2.getValue() )
+				
 				if ( !null.is( neededRef ) )
-					return harden( ref: neededRef )
+					return harden( neededRef )
 				
-				lead =
-					new LeadCalc( calc: calcCall( lead2.next, [] ) )
+				lead = new LeadCalc(
+					calc: calcCall( lead2.getNext(), [] ) )
 				break
 				
 			case LeadPromise:
 				def lead2 = (LeadPromise)lead
-				addPromise lead2.filter
-				lead = calcCall( lead2.next, [] )
+				addPromise lead2.getFilter()
+				lead = calcCall( lead2.getNext(), [] )
 				break
 				
 			case LeadCalc:
-				def initialInnerCalc = ((LeadCalc)lead).calc
+				def initialInnerCalc = ((LeadCalc)lead).getCalc()
 				switch ( initialInnerCalc )
 				{
-				case Ref: return harden( ref: initialInnerCalc )
+				case Ref: return harden( initialInnerCalc )
 					
 				case CalcResult:
-					def value = ((CalcResult)initialInnerCalc).value
+					def value =
+						((CalcResult)initialInnerCalc).getValue()
+					
 					if ( value in Ref )
-						return harden( ref: value )
+						return harden( value )
 					
 					// TODO: See if this would be better as a LeadErr
 					// instead.

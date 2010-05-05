@@ -85,7 +85,7 @@ final class Calcs
 		def refIsSet = { Refs.isSetDirect getRef( it ) }
 		
 		def harden = { [
-			new CalcHardAsk( ref: it.ref, next: BuiltIn.of { calc } ),
+			new CalcHardAsk( ref: it, next: BuiltIn.of { calc } ),
 			true
 		] }
 		
@@ -110,9 +110,9 @@ final class Calcs
 				case CalcResult: return [ calc, didAnything ]
 					
 				case CalcErr:
-					def error = ((CalcErr)calc).error
+					def error = ((CalcErr)calc).getError()
 					if ( error in Ref )
-						return harden( ref: error )
+						return harden( error )
 					
 					throw new RuntimeException(
 						   "A calculation resulted in this error:"
@@ -121,40 +121,40 @@ final class Calcs
 				case CalcSoftAsk:
 					def calc2 = (CalcSoftAsk)calc
 					
-					def sig = calc2.sig
+					def sig = calc2.getSig()
 					def neededRef = Refs.anyNeededRef( sig )
 					if ( !null.is( neededRef ) )
-						return harden( ref: neededRef )
+						return harden( neededRef )
 					
-					calc = new CalcCalc( calc:
-						calcCall( calc2.next, [ getRef( sig ) ] ) )
+					calc = new CalcCalc( calc: calcCall(
+						calc2.getNext(), [ getRef( sig ) ] ) )
 					break
 					
 				case CalcHardAsk:
 					def calc2 = (CalcHardAsk)calc
 					
-					def ref = calc2.ref
+					def ref = calc2.getRef()
 					
 					if ( !refIsSet( ref ) )
 						return [ calc, didAnything ]
 					
 					calc = new CalcCalc(
-						calc: calcCall( calc2.next, [] ) )
+						calc: calcCall( calc2.getNext(), [] ) )
 					
 					break
 					
 				case CalcCalc:
-					def initialInnerCalc = ((CalcCalc)calc).calc
+					def initialInnerCalc = ((CalcCalc)calc).getCalc()
 					switch ( initialInnerCalc )
 					{
-					case Ref: return harden( ref: initialInnerCalc )
+					case Ref: return harden( initialInnerCalc )
 						
 					case CalcResult:
 						def value =
-							((CalcResult)initialInnerCalc).value
+							((CalcResult)initialInnerCalc).getValue()
 						
 						if ( value in Ref )
-							return harden( ref: value )
+							return harden( value )
 						
 						// TODO: See if this would be better as a
 						// CalcErr instead.
