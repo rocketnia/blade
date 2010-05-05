@@ -29,103 +29,7 @@ package com.rocketnia.blade
 import com.rocketnia.blade.declare.*
 
 
-// A sig is a list of values representing a path of namespaces.
-// Contributing to a sig is the same as contributing a contribution
-// object to the sig's parent, where the sig's parent uses a
-// particular reducer which creates a namespace full of multivals out
-// of a bunch of contribution objects.
-class Sig extends RefMap {
-	Blade getDerivative() { get "derivative" }
-	Blade setDerivative( Blade val ) { set "derivative", val }
-	Blade getParent() { get "parent" }
-	Blade setParent( Blade val ) { set "parent", val }
-}
-
-
-// Note that these sigs are assumed to be non-Refs that satisfy
-// { null.is( Refs.anyNeededRef( it ) ) }.
-//
-// Both this and sigIsoRep are used, even if they are a bit redundant.
-//
-boolean sigIso( Blade a, Blade b )
-{
-	while ( a in Sig && b in Sig )
-	{
-		def aSig = (Sig)a, bSig = (Sig)b
-		
-		if ( aSig.derivative != bSig.derivative )
-			return false
-		
-		a = aSig.parent
-		b = bSig.parent
-	}
-	
-	return a == b
-}
-
-List< Blade > sigAncestors( Blade sig )
-{
-	List< Blade > revResult = [ sig ]
-	
-	while ( sig in Sig )
-		revResult.add sig = ((Sig)sig).parent
-	
-	return revResult.reverse()
-}
-
-def sigIsParent( Blade sig, Blade child )
-	{ sig in Sig && sigIso( ((Sig)sig).parent, child ) }
-
 class BladeNamespace implements Blade { Map map }
-
-// Note that the sig is assumed to be a non-Ref that satisfies
-// { null.is( Refs.anyNeededRef( it ) ) }.
-List< Blade > sigIsoRep( Blade sig )
-{
-	def revResult = [];
-	
-	while ( sig in Sig )
-	{
-		def sigSig = (Sig)sig
-		revResult.add( sigSig.derivative )
-		sig = sigSig.parent
-	}
-	
-	revResult.add sig
-	
-	return revResult.reverse()
-}
-
-Blade sigIsoRepToSig( List< Blade > isoRep )
-	{ isoRep.tail().inject( isoRep.head() ) { parent, derivative -> (
-		new Sig( parent: parent, derivative: derivative )
-	) } }
-
-class SigMap {
-	private Map< List< Blade >, ? > entries = [:]
-	
-	def getAt( Blade key ) { entries[ sigIsoRep( key ) ] }
-	
-	int size() { entries.size() }
-	
-	Set< List< Blade > > keySet()
-		{ entries.keySet().collect( sigIsoRepToSig ) }
-	
-	def setAt( Blade key, value )
-		{ entries[ sigIsoRep( key ) ] = value }
-	
-	def push( Blade key, elem )
-	{
-		def keyRep = sigIsoRep( key )
-		return entries[ keyRep ] =
-			[ elem ] + (entries[ keyRep ] ?: [])
-	}
-	
-	boolean containsKey( Sig key )
-		{ entries.containsKey sigIsoRep( key ) }
-	
-	def remove( Blade key ) { entries.remove sigIsoRep( key ) }
-}
 
 class BladeSet implements Blade { Set< Blade > contents }
 
@@ -193,7 +97,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	
 	def getRef = { Blade sig -> reductionRefs[ sig ] ?: Misc.let {
 		
-		for ( ancestor in sigAncestors( sig ).tail() )
+		for ( ancestor in Sigs.sigAncestors( sig ).tail() )
 			reductionRefs[ ancestor ] ?:
 				(reductionRefs[ ancestor ] = new Ref())
 		
@@ -234,7 +138,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 		else if ( directly != false )
 			return directly
 		
-		for ( ancestor in sigAncestors( sig ).tail() )
+		for ( ancestor in Sigs.sigAncestors( sig ).tail() )
 		{
 			def existingReducer = reducers[ ancestor ]
 			if ( null.is( existingReducer ) )
@@ -283,7 +187,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 	}
 	
 	def promiseRejects = { filter, sig -> (
-		sigAncestors( sig ).any { promiseRejects1 filter, it }
+		Sigs.sigAncestors( sig ).any { promiseRejects1 filter, it }
 	) }
 	
 	def advanceLead = { leadInfo ->
@@ -393,7 +297,7 @@ Blade bladeTopLevel( Set< Lead > initialLeads,
 			if ( namespacing == true )
 			{
 				def kids = reductionRefs.
-					keySet().findAll { sigIsParent sig, it }
+					keySet().findAll { Sigs.sigIsParent sig, it }
 				
 				if ( !kids.every( refIsSet ) )
 					continue
