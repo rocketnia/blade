@@ -20,19 +20,29 @@
 
 // Create everyday tasks. The JVM-Blade project layout is arranged
 // according to the default Gradle conventions just so that we don't
-// need any more configuration than this. Some of the most useful
+// need much more configuration than this. Some of the most useful
 // tasks defined this way are "build", "clean", "eclipse", and
 // "eclipseClean".
-//
-// Since Gradle's Groovy plugin doesn't specify the Groovy
-// implementation for us, we go get one from the Maven repository.
-// Right now we're using Groovy 1.7.0 rather than 1.7.2 in order to
-// match up with the version Eclipse's Groovy plugin uses.
-//
 apply plugin: 'eclipse'
 apply plugin: 'groovy'
+
+// All our dependencies will be resolved (and downloaded, if
+// necessary) from the central Maven repository.
 repositories { mavenCentral() }
-dependencies { groovy 'org.codehaus.groovy:groovy:1.7.0' }
+
+dependencies {
+	
+	// Gradle's Groovy plugin doesn't specify the Groovy
+	// implementation for us, so we specify it ourselves. Right now
+	// we're using Groovy 1.7.0 rather than 1.7.2 in order to match up
+	// with the version Eclipse's Groovy plugin uses.
+	groovy 'org.codehaus.groovy:groovy:1.7.0'
+	
+	// Gradle's unit test support requires us to specify a tool for
+	// that as well. We'd use JUnit 4.8.2, but only 4.8.1 is in the
+	// Maven repository for the time being.
+	testCompile 'junit:junit:4.8.1'
+}
 
 // Make sure the jar is named blade.jar rather than jvm.jar.
 archivesBaseName = 'blade'
