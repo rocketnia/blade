@@ -84,6 +84,35 @@ final class TopLevel
 	// identity; they can each be given as "new Blade() {}" if there's
 	// no more appropriate alternative.
 	//
+	// TODO: See how useful it would be to have a generic multiset
+	// reducer that has special abilities. For instance, a Calc could
+	// ask "does any element of the multiset satisfy this property?"
+	// and a Lead could split into one lead per element of the
+	// multiset, such each of those Leads can spawn and begin
+	// calculating as soon as its element is contributed. A
+	// contribution set could be one of these behind the scenes.
+	// However, if this isn't done carefully, it could get out of
+	// hand; if a Calc asks "does any sub-multiset of the multiset
+	// satisfy this property?" it'll make sense, but it'll be horribly
+	// inefficient.
+	//
+	// TODO: The right way to report errors here is to blame them on
+	// regions of the source documents, so that they can be quickly
+	// found and corrected. For instance, every LeadInfo (if not every
+	// Lead itself) should be associated with a source region to blame
+	// if the Lead breaks a promise.
+	//
+	// TODO: Once errors are being collected like that rather than
+	// stopping the whole top level calculation, it might be nice if
+	// the calculation could be aborted somewhere after error have
+	// been reported and before further intensive calculation takes
+	// place. For instance, this might be done by having a special
+	// LeadWait Lead to signal that an processing of that lead should
+	// be put on hold until there are only LeadWaits and no errors
+	// have been reported. An even cooler idea would be for the
+	// developer to be able to see errors as they're found and to
+	// abort manually.
+	//
 	static Blade bladeTopLevel( Set< Lead > initialLeads,
 		Closure bladeReducerIsoMaker, Closure bladeTruthyInteractive,
 		Closure calcCall, Blade namespaceReducer, Blade sigBase )
