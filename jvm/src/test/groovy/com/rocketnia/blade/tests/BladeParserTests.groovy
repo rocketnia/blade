@@ -20,6 +20,8 @@
 
 package com.rocketnia.blade.tests
 
+import com.rocketnia.blade.parse.*
+
 import static DocumentSelection.from as sel
 
 
