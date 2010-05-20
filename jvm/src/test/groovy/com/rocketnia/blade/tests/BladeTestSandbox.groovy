@@ -149,18 +149,16 @@ class LineLocation
 	
 	private isoRep() { [ LineLocation, counts ] }
 	int hashCode() { isoRep().hashCode() }
-	boolean equals( Object other ) { !null.is( other ) &&
-		Misc.let { Class c = owner.class, oc = other.class -> (
-			(oc.is( c ) &&
-				((LineLocation)other).isoRep().equals( isoRep() ))
-			|| (c.isAssignableFrom( oc ) && other.equals( this ))
-		) }
+	boolean equals( Object other ) { !null.is( other ) && Misc.
+		let { Class c = owner.class, oc = other.class -> c.is( oc ) ?
+			((LineLocation)other).isoRep().equals( isoRep() ) :
+			c.isAssignableFrom( oc ) && other.equals( this ) }
 	}
 	
-	private static noCase = new Object()
-	private static comparableCase = { null.is it }
-	private static ltCase = -1
-	private static lteCase = [ -1, 0 ]
+	private static final noCase = new Object()
+	private static final comparableCase = { null.is it }
+	private static final ltCase = -1
+	private static final lteCase = [ -1, 0 ]
 	
 	// One position is prefix-earlier than another if and only if its
 	// tab-and-spaces string is a proper prefix of the other's string.
@@ -844,8 +842,8 @@ class ListDocument implements Document
 {
 	protected List< String > list
 	
-	private static Pattern newline = ~/\n|\r\n?/
-	private static Pattern rtrimmer = ~/[ \t]*$/
+	private static final Pattern newline = ~/\n|\r\n?/
+	private static final Pattern rtrimmer = ~/[ \t]*$/
 	
 	protected ListDocument( List< String > list )
 	{
@@ -924,12 +922,10 @@ class DocumentLocation
 	private isoRep()
 		{ [ DocumentLocation, lineNumber, lineLocation ] }
 	int hashCode() { isoRep().hashCode() }
-	boolean equals( Object other ) { !null.is( other ) &&
-		Misc.let { Class c = owner.class, oc = other.class -> (
-			(oc.is( c ) &&
-				((LineLocation)other).isoRep().equals( isoRep() ))
-			|| (c.isAssignableFrom( oc ) && other.equals( this ))
-		) }
+	boolean equals( Object other ) { !null.is( other ) && Misc.
+		let { Class c = owner.class, oc = other.class -> c.is( oc ) ?
+			((DocumentLocation)other).isoRep().equals( isoRep() ) :
+			c.isAssignableFrom( oc ) && other.equals( this ) }
 	}
 	
 	String toString() { "$lineNumber:$lineLocation" }
@@ -977,15 +973,46 @@ class DocumentSelection
 	
 	private isoRep() { [ DocumentSelection, start, stop ] }
 	int hashCode() { isoRep().hashCode() }
-	boolean equals( Object other ) { !null.is( other ) &&
-		Misc.let { Class c = owner.class, oc = other.class -> (
-			(oc.is( c ) &&
-				((LineLocation)other).isoRep().equals( isoRep() ))
-			|| (c.isAssignableFrom( oc ) && other.equals( this ))
-		) }
+	boolean equals( Object other ) { !null.is( other ) && Misc.
+		let { Class c = owner.class, oc = other.class -> c.is( oc ) ?
+			((DocumentSelection)other).isoRep().equals( isoRep() ) :
+			c.isAssignableFrom( oc ) && other.equals( this ) }
 	}
 	
 	String toString() { "$start-$stop" }
+	
+	static DslFrom from( DocumentLocation from )
+		{ new DslFrom( from: from ) }
+	
+	static DslFrom from( int lineNumber, LineLocation lineLocation )
+		{ from DocumentLocation.of( lineNumber, lineLocation ) }
+	
+	static DslFrom from( int lineNumber, int... lineLocation )
+		{ from DocumentLocation.of( lineNumber, lineLocation ) }
+	
+	static DslFrom from( int lineNumber, String lineLocation )
+		{ from DocumentLocation.of( lineNumber, lineLocation ) }
+	
+	static class DslFrom
+	{
+		DocumentLocation from
+		
+		DocumentSelection to( DocumentLocation to )
+			{ new DocumentSelection( from, to ) }
+		
+		DocumentSelection to(
+			int lineNumber, LineLocation lineLocation )
+			{ to DocumentLocation.of( lineNumber, lineLocation ) }
+		
+		DocumentSelection to( int lineNumber, int... lineLocation )
+			{ to DocumentLocation.of( lineNumber, lineLocation ) }
+		
+		DocumentSelection to( int lineNumber, String lineLocation )
+			{ to DocumentLocation.of( lineNumber, lineLocation ) }
+		
+		DocumentSelection plus( int spaces )
+			{ to from.lineNumber, from.lineLocation + spaces }
+	}
 }
 
 final class Documents
@@ -1090,16 +1117,24 @@ final class Documents
 
 class ErrorSelection
 {
-	final error
+	final message
 	final DocumentSelection selection
 	
-	ErrorSelection( error, DocumentSelection selection )
+	ErrorSelection( message, DocumentSelection selection )
 	{
-		this.error = error
+		this.message = message
 		this.selection = selection
 	}
 	
-	String toString() { "$error@$selection" }
+	String toString() { "$message@$selection" }
+	
+	private isoRep() { [ ErrorSelection, message, selection ] }
+	int hashCode() { isoRep().hashCode() }
+	boolean equals( Object other ) { !null.is( other ) && Misc.
+		let { Class c = owner.class, oc = other.class -> c.is( oc ) ?
+			((ErrorSelection)other).isoRep().equals( isoRep() ) :
+			c.isAssignableFrom( oc ) && other.equals( this ) }
+	}
 }
 
 class ParseException extends RuntimeException
@@ -1108,7 +1143,7 @@ class ParseException extends RuntimeException
 	ParseException( String message ) { super( message ) }
 	
 	def selected( DocumentSelection selection )
-		{ new ErrorSelection( this, selection ) }
+		{ new ErrorSelection( this.toString(), selection ) }
 	
 	String toString()
 		{ getClass().getSimpleName() +
@@ -1117,10 +1152,10 @@ class ParseException extends RuntimeException
 
 final class BladeParser
 {
-	private static int openCp = '['.codePointAt( 0 )
-	private static int closeCp = ']'.codePointAt( 0 )
-	private static List< Integer > whiteCps =
-		[ ' ', '\t' ]*.codePointAt( 0 )
+	private static final int openCp = '['.codePointAt( 0 )
+	private static final int closeCp = ']'.codePointAt( 0 )
+	private static final List< Integer > whiteCps =
+		[ ' '.codePointAt( 0 ), '\t'.codePointAt( 0 ) ]
 	
 	private BladeParser() {}
 	
