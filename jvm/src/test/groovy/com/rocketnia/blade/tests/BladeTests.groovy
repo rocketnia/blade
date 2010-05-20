@@ -25,14 +25,7 @@ class BladeTests extends GroovyTestCase
 {
 	void testTestResources()
 	{
-		def lines = []
-		
-		new InputStreamReader(
-			getClass().getResourceAsStream( "/resource.txt" ),
-			"UTF-8"
-		).eachLine { lines.add it }
-		
-		assertEquals lines, [
+		assertEquals getResourceLines( "/resource.txt" ), [
 			"Hello!",
 			"",
 			"I",
@@ -42,5 +35,15 @@ class BladeTests extends GroovyTestCase
 			"",
 			"Have a nice day."
 		]
+	}
+	
+	List getResourceLines( String filename )
+	{
+		def stream = getClass().getResourceAsStream( filename )
+		
+		def lines = []
+		new InputStreamReader( stream, "UTF-8" ).
+			eachLine { lines.add it }
+		return lines
 	}
 }
