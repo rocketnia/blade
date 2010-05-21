@@ -34,4 +34,47 @@ final class Misc
 	private Misc() {}
 	
 	static let( f ) { f() }
+	
+	static boolean anyNonDir( File file, Closure body )
+	{
+		// We don't really care about the traversal order, but we're
+		// making a point to avoid JVM recursion so that we don't get
+		// a StackOverflowError.
+		
+		def toGo = [ file ]
+		
+		while ( !toGo.isEmpty() )
+		{
+			def thisFile = (File)toGo.pop()
+			
+			if ( thisFile.isFile() )
+			{
+				if ( body( thisFile ) )
+					return true
+			}
+			else for ( child in thisFile.listFiles() )
+				toGo.add child
+		}
+		
+		return false
+	}
+	
+	static void eachNonDir( File file, Closure body )
+	{
+		anyNonDir file, {
+			
+			body it
+			return false
+		}
+	}
+	
+	static Set< File > getNonDirs( File directory )
+	{
+		if ( null.is( directory ) || !directory.exists() )
+			return null
+		
+		def result = []
+		eachNonDir( new File( directory.toURI() ), result.&add )
+		return result as Set
+	}
 }

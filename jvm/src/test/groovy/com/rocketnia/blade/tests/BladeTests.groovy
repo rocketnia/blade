@@ -20,6 +20,8 @@
 
 package com.rocketnia.blade.tests
 
+import com.rocketnia.blade.*
+
 
 class BladeTests extends GroovyTestCase
 {
@@ -44,7 +46,8 @@ class BladeTests extends GroovyTestCase
 		
 		assertEquals bladeProjectUrl.getProtocol(), "file"
 		def filesFound = 0
-		traverse( bladeProjectUrl.getPath() as File ) { filesFound++ }
+		Misc.eachNonDir( new File( bladeProjectUrl.toURI() ) )
+			{ filesFound++ }
 		assertEquals filesFound, 3
 		
 		assertEquals getResourceFiles( "/bladeproject" ).size(), 3
@@ -60,32 +63,16 @@ class BladeTests extends GroovyTestCase
 		return lines
 	}
 	
-	static void traverse( File file, Closure body )
-	{
-		// We don't really care about the traversal order, but we're
-		// making a point to avoid JVM recursion so that we don't get
-		// a StackOverflowError.
-		
-		def toGo = [ file ]
-		
-		while ( !toGo.isEmpty() )
-		{
-			def thisFile = (File)toGo.pop()
-			
-			if ( thisFile.isFile() )
-				body thisFile
-			else for ( child in thisFile.listFiles() )
-				toGo.add child
-		}
-	}
+	static Set< File > getResourceFiles( String directory )
+		{ Misc.getNonDirs getResourceFile( directory ) }
 	
-	static List< File > getResourceFiles( String directory )
+	static File getResourceFile( String filename )
 	{
-		def result = []
-		traverse(
-			getClass().getResource( directory ).getPath() as File,
-			result.&add
-		)
-		return result
+		def url = getClass().getResource( filename )
+		
+		if ( null.is( url ) )
+			return null
+		
+		return new File( url.toURI() ).getCanonicalFile()
 	}
 }

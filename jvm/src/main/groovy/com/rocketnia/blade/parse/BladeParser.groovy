@@ -20,6 +20,8 @@
 
 package com.rocketnia.blade.parse
 
+import com.rocketnia.blade.*
+
 
 final class BladeParser
 {
@@ -287,4 +289,29 @@ final class BladeParser
 	
 	static List parseParagraphedBrackets( String code )
 		{ parseParagraphedBrackets ListDocument.of( code ) }
+	
+	static Map< String, List > parseProject( File root )
+	{
+		if ( null.is( root ) || !root.exists() )
+			return null
+		
+		def result = [:]
+		for ( File file: Misc.getNonDirs( root ).
+			findAll { it.getName() =~ /\.blade$/ } )
+		{
+			def relativeParts = []
+			for (
+				File parent = file;
+				!parent.equals( root );
+				parent = parent.getParentFile()
+			)
+				relativeParts.add parent.getName()
+			
+			result[ relativeParts.reverse().join( '/' ) ] =
+				parseParagraphedBrackets(
+					new ListDocument( file.readLines() ) )
+		}
+		
+		return result
+	}
 }

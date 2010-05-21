@@ -60,4 +60,10 @@ continuation of the above paragraph.
 
 ''' )
 
+println BladeParser.parseProject(
+	BladeTests.getResourceFile( "/bladeproject" ) )
+
+println BladeParser.parseProject(
+	BladeTests.getResourceFile( "/bladeproject/something.blade" ) )
+
 println "Finishing BladeTestSandbox"

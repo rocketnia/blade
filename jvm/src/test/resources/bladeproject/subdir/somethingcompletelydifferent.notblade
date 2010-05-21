@@ -1,3 +1,6 @@
 == This ==
 
-is a text file with no particular structure to it.
+is a text file with no particular structure to it. It isn't named with
+a .blade extension.
+
+[As such, this is ignored by the parser.]
