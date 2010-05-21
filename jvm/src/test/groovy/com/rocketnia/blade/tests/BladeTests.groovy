@@ -37,7 +37,20 @@ class BladeTests extends GroovyTestCase
 		]
 	}
 	
-	List getResourceLines( String filename )
+	void testTestResourceTraversal()
+	{
+		def bladeProjectUrl =
+			getClass().getResource( "/bladeproject" )
+		
+		assertEquals bladeProjectUrl.getProtocol(), "file"
+		def filesFound = 0
+		traverse( bladeProjectUrl.getPath() as File ) { filesFound++ }
+		assertEquals filesFound, 3
+		
+		assertEquals getResourceFiles( "/bladeproject" ).size(), 3
+	}
+	
+	static List getResourceLines( String filename )
 	{
 		def stream = getClass().getResourceAsStream( filename )
 		
@@ -45,5 +58,34 @@ class BladeTests extends GroovyTestCase
 		new InputStreamReader( stream, "UTF-8" ).
 			eachLine { lines.add it }
 		return lines
+	}
+	
+	static void traverse( File file, Closure body )
+	{
+		// We don't really care about the traversal order, but we're
+		// making a point to avoid JVM recursion so that we don't get
+		// a StackOverflowError.
+		
+		def toGo = [ file ]
+		
+		while ( !toGo.isEmpty() )
+		{
+			def thisFile = (File)toGo.pop()
+			
+			if ( thisFile.isFile() )
+				body thisFile
+			else for ( child in thisFile.listFiles() )
+				toGo.add child
+		}
+	}
+	
+	static List< File > getResourceFiles( String directory )
+	{
+		def result = []
+		traverse(
+			getClass().getResource( directory ).getPath() as File,
+			result.&add
+		)
+		return result
 	}
 }
