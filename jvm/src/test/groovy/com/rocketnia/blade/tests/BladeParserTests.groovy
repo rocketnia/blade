@@ -102,4 +102,38 @@ continuation of the above paragraph.
 		assertEquals make( 0 ), make( 0 )
 		assertFalse make( 0 ) == make( 1 )
 	}
+	
+	void testProject()
+	{
+		def somethingBrackets = [
+			[
+				sel( 2, 1 ).to( 4, 2 ),
+				[ sel( 4, 3 ) + 9 ],
+				sel( 4, 13 ) + 11
+			],
+			[ sel( 5, 5 ) + 4 ]
+		]
+		
+		def somethingElseBrackets = [ [
+			sel( 0, 1 ) + 15,
+			[ sel( 0, 17 ) + 4 ],
+			sel( 0, 22 ) + 1
+		] ]
+		
+		assertEquals BladeParser.parseProject( BladeTests.
+			getResourceFile( "/bladeproject/something.blade" ) ),
+			[ "": somethingBrackets ]
+		
+		assertEquals BladeParser.parseProject(
+			BladeTests.getResourceFile(
+				"/bladeproject/subdir/somethingelse.blade" ) ),
+			[ "": somethingElseBrackets ]
+		
+		assertEquals BladeParser.parseProject(
+			BladeTests.getResourceFile( "/bladeproject" ) ),
+			[
+				"something.blade": somethingBrackets,
+				"subdir/somethingelse.blade": somethingElseBrackets
+			]
+	}
 }
