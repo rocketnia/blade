@@ -123,9 +123,9 @@ def bladeCore = { File projectFile ->
 		
 		if ( blade in BuiltIn
 			&& ((BuiltIn)blade).getValue() == false )
-			return bladeFalse
+			return false
 		
-		return blade == bladeFalse ? bladeFalse : bladeTrue
+		return true
 	}
 	
 	Closure calcCall = { Blade fn, List< Blade > args ->
@@ -151,16 +151,17 @@ def bladeCore = { File projectFile ->
 			 + " function." )
 	}
 	
-	Blade namespaceReducer = new Blade() {}
-	Blade sigBase = new Blade() {}
+	Blade namespaceReducer =
+		[ toString: { "namespaceReducer" } ] as Blade
+	Blade sigBase = [ toString: { "sigBase" } ] as Blade
 	
 	
 	Blade interpretDeclaration = BuiltIn.of { List< Blade > args ->
 		
 		if ( args.size() != 1 )
 			return new CalcErr( error: Builtin.of(
-			"Expected 1 argument to interpretDeclaration and"
-			+ " got ${args.size()}." ) )
+					"Expected 1 argument to interpretDeclaration and"
+				 + " got ${args.size()}." ) )
 		
 		def ( arg ) = args
 		
@@ -183,6 +184,24 @@ def bladeCore = { File projectFile ->
 		}
 	}
 	
+	// If the Blade program makes no explicit contributions and we
+	// don't make any automatic ones, then sigBase won't have any
+	// contributions, and it won't be able to reduce.
+	//
+	// We are in fact planning to have some automatic contributions,
+	// but for now all we have is a sample of one.
+	//
+	// TODO: Contribute something actually meaningful here.
+	//
+	initialLeads.add new LeadContrib(
+		sig: new Sig(
+			parent: sigBase, derivative: BuiltIn.of( "sample-var" ) ),
+		reducer: BuiltIn.of { new CalcResult(
+			value: BuiltIn.of( "sample-value" ) ) },
+		value: BuiltIn.of( null ),
+		next: BuiltIn.of { new CalcResult( value: new LeadEnd() ) }
+	)
+	
 	return TopLevel.bladeTopLevel(
 		initialLeads, bladeReducerIsoMaker, bladeTruthyInteractive,
 		calcCall, namespaceReducer, sigBase )
@@ -190,7 +209,6 @@ def bladeCore = { File projectFile ->
 
 // This should have a rather empty result; resource.txt isn't even a
 // .blade file, so it will be completely ignored.
-// TODO: This throws an exception right now. Fix that.
 println bladeCore( BladeTests.getResourceFile( "/resource.txt" ) )
 
 println "Finishing BladeTestSandbox"

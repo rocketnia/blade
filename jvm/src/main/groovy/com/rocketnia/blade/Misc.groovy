@@ -23,10 +23,16 @@ package com.rocketnia.blade
 
 interface Blade {}
 
+// TODO: Use this class less often. It's okay for experimentation, but
+// uses of it in this project (JVM-Blade) should eventually be changed
+// wherever possible so that other, more tailor-made types are used
+// instead.
 class BuiltIn implements Blade {
 	def value
 	
 	static BuiltIn of( value ) { new BuiltIn( value: value ) }
+	
+	String toString() { "BuiltIn(${value.inspect()})" }
 }
 
 final class Misc

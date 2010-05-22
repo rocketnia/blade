@@ -23,7 +23,11 @@ package com.rocketnia.blade.declare
 import com.rocketnia.blade.*
 
 
-class BladeNamespace implements Blade { Map map }
+class BladeNamespace implements Blade {
+	Map map
+	
+	String toString() { "BladeNamespace$map" }
+}
 
 class BladeSet implements Blade { Set< Blade > contents }
 
@@ -297,8 +301,14 @@ final class TopLevel
 				if ( advanceReduction( sig ) )
 					didAnything = true
 			
-			if ( leadInfos.removeAll { it.lead in LeadEnd } )
-				didAnything = true
+			for ( leadInfo in leadInfos.clone() )
+			{
+				if ( leadInfo.lead in LeadEnd )
+				{
+					leadInfos.remove leadInfo
+					didAnything = true
+				}
+			}
 			
 			for ( LeadInfo leadInfo in leadInfos.clone() )
 			{
@@ -325,7 +335,8 @@ final class TopLevel
 				if (
 					!reducers.containsKey( sig )
 					|| reductions.containsKey( sig )
-					|| refIsSet( sig )
+					|| (refIsSet( sig )
+						&& Refs.isSetDirect( contribSetRefs[ sig ] ))
 					|| !leadInfos.every { (
 						it.promises.any { promiseRejects it, sig }
 					) }
@@ -336,6 +347,9 @@ final class TopLevel
 				def namespacing = isNamespaceReducer( reducer )
 				if ( namespacing == true )
 				{
+					if ( refIsSet( sig ) )
+						continue
+					
 					def kids = reductionRefs.
 						keySet().findAll { Sigs.sigIsParent sig, it }
 					
@@ -353,6 +367,9 @@ final class TopLevel
 				}
 				else if ( namespacing == false )
 				{
+					if ( Refs.isSetDirect( contribSetRefs[ sig ] ) )
+						continue
+					
 					Refs.set contribSetRefs[ sig ], new BladeSet(
 						contents: contribs[ sig ] as Set )
 					

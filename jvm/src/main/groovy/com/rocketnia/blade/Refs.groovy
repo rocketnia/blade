@@ -26,6 +26,9 @@ class Ref implements Blade {
 	
 	boolean isResolved() { !null.is( value ) }
 	synchronized void resolve( Blade value ) { this.value = value }
+	
+	String toString()
+		{ isResolved() ? "Ref>$value" : "Ref(unresolved)" }
 }
 
 final class Refs
@@ -118,5 +121,5 @@ class RefMap implements Blade
 	Blade set( String name, Blade value ) { refs[ name ] = value }
 	
 	Set< String > refKeys() { new HashSet< String >( refs.keySet() ) }
-	Set< Blade > refVals() { refKeys().collect get }
+	Set< Blade > refVals() { refKeys().collect this.&get }
 }

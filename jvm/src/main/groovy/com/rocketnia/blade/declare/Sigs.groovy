@@ -33,6 +33,13 @@ class Sig extends RefMap {
 	Blade setDerivative( Blade val ) { set "derivative", val }
 	Blade getParent() { get "parent" }
 	Blade setParent( Blade val ) { set "parent", val }
+	
+	String toString()
+	{
+		def isoRep = Sigs.sigIsoRep( this )
+		return "Sig" +
+			"( ${isoRep.head()} . ${isoRep.tail().join( ' ' )} )"
+	}
 }
 
 class SigMap {
@@ -41,11 +48,12 @@ class SigMap {
 	def getAt( Blade key ) { entries[ Sigs.sigIsoRep( key ) ] }
 	
 	int size() { entries.size() }
+	def values() { entries.values() }
 	
 	Set< List< Blade > > keySet()
-		{ entries.keySet().collect( Sigs.sigIsoRepToSig ) }
+		{ entries.keySet().collect( Sigs.&sigIsoRepToSig ) }
 	
-	def setAt( Blade key, value )
+	def putAt( Blade key, value )
 		{ entries[ Sigs.sigIsoRep( key ) ] = value }
 	
 	def push( Blade key, elem )
@@ -55,11 +63,13 @@ class SigMap {
 			[ elem ] + (entries[ keyRep ] ?: [])
 	}
 	
-	boolean containsKey( Sig key )
+	boolean containsKey( Blade key )
 		{ entries.containsKey Sigs.sigIsoRep( key ) }
 	
 	def remove( Blade key )
 		{ entries.remove( Sigs.sigIsoRep( key ) ) }
+	
+	String toString() { "SigMap$entries" }
 }
 
 
@@ -91,16 +101,16 @@ final class Sigs
 	
 	static List< Blade > sigAncestors( Blade sig )
 	{
-		List< Blade > revResult = [ sig ]
+		List< Blade > result = [ sig ]
 		
 		while ( sig in Sig )
-			revResult.add sig = ((Sig)sig).getParent()
+			result.add sig = ((Sig)sig).getParent()
 		
-		return revResult.reverse()
+		return result
 	}
 	
-	static boolean sigIsParent( Blade sig, Blade child )
-		{ sig in Sig && sigIso( ((Sig)sig).getParent(), child ) }
+	static boolean sigIsParent( Blade parent, Blade child )
+		{ child in Sig && sigIso( parent, ((Sig)child).getParent() ) }
 	
 	// Note that the sig is assumed to be a non-Ref that satisfies
 	// { null.is( Refs.anyNeededRef( it ) ) }.
