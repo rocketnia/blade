@@ -105,8 +105,6 @@ final class Leads
 		Closure getRef, Closure addContrib, Closure addPromise,
 		Closure getPromises, Closure bladeTruthy )
 	{
-		def refIsSet = { Refs.isSetDirect getRef( it ) }
-		
 		def harden = { [
 			new LeadCalc( calc: new CalcHardAsk(
 				ref: it, next: BuiltIn.of { lead } ) ),

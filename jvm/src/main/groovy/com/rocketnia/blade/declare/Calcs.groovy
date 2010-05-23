@@ -82,8 +82,6 @@ final class Calcs
 	{
 		def originalCalc = calc
 		
-		def refIsSet = { Refs.isSetDirect getRef( it ) }
-		
 		def harden = { [
 			new CalcHardAsk( ref: it, next: BuiltIn.of { calc } ),
 			true
@@ -135,7 +133,7 @@ final class Calcs
 					
 					def ref = calc2.getRef()
 					
-					if ( !refIsSet( ref ) )
+					if ( !Refs.isSetIndirect( ref ) )
 						return [ calc, didAnything ]
 					
 					calc = new CalcCalc(

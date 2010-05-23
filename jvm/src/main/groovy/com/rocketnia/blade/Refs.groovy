@@ -73,7 +73,7 @@ final class Refs
 	}
 	
 	static boolean isSetIndirect( Blade ref )
-		{ derefSoft( ref ) in Ref }
+		{ !(derefSoft( ref ) in Ref) }
 	
 	static boolean isSetDirect( Blade ref )
 		{ ref in Ref && ((Ref)ref).isResolved() }

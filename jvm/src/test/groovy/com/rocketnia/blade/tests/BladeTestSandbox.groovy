@@ -67,21 +67,19 @@ println BladeParser.parseProject(
 println BladeParser.parseProject(
 	BladeTests.getResourceFile( "/bladeproject/something.blade" ) )
 
-class BracketChunk
+class BracketChunk implements Blade
 {
 	String path
 	List bracketSelections
 	
 	BracketChunk( String path, List bracketSelections )
-		{ this( path: path, bracketSelections: bracketSelections ) }
-	
-	private isoRep() { [ BracketChunk, path, bracketSelections ] }
-	int hashCode() { isoRep().hashCode() }
-	boolean equals( Object other ) { !null.is( other ) && Misc.
-		let { Class c = owner.class, oc = other.class -> c.is( oc ) ?
-			((BracketChunk)other).isoRep().equals( isoRep() ) :
-			c.isAssignableFrom( oc ) && other.equals( this ) }
+	{
+		this.path = path
+		this.bracketSelections = bracketSelections
 	}
+	
+	String toString()
+		{ "BracketChunk( ${path.inspect()}, $bracketSelections )" }
 }
 
 def bladeCore = { File projectFile ->
@@ -95,7 +93,7 @@ def bladeCore = { File projectFile ->
 		// TODO: Support extending this from within Blade.
 		
 		if ( args.size() != 2 )
-			return new CalcErr( error: Builtin.of(
+			return new CalcErr( error: BuiltIn.of(
 					"Expected 2 arguments to iso and got"
 				 + " ${args.size()}." ) )
 		
@@ -156,21 +154,85 @@ def bladeCore = { File projectFile ->
 	Blade sigBase = [ toString: { "sigBase" } ] as Blade
 	
 	
-	Blade interpretDeclaration = BuiltIn.of { List< Blade > args ->
+	def hardAsk = { ref, Closure body ->
+		
+		def derefed = Refs.derefSoft( ref )
+		
+		if ( !(derefed in Ref) )
+			return body( derefed )
+		
+		return new CalcHardAsk( ref: derefed, next: BuiltIn.
+			of { List< Blade > args ->
+				
+				if ( args.size() != 0 )
+					return new CalcErr( error: BuiltIn.of(
+							"Expected 0 arguments to a CalcHardAsk"
+						 + " continuation and got ${args.size()}." ) )
+				
+				def derefedAgain = Refs.derefSoft( derefed )
+				if ( derefedAgain in Ref )
+					return new CalcErr( error: BuiltIn.of(
+							"A hard ask was continued before it was"
+						 + " fulfilled." ) )
+				
+				return new CalcResult( value: body( derefedAgain ) )
+			}
+		)
+	}
+	
+	// Note that this reducer produces BladeMultisets but never
+	// produces an empty BladeMultiset, since contribution sets are
+	// never empty. (We don't specify a reducer until we contribute.)
+	// For general-purpose multiset construction, a reducer that
+	// appends its contributions would be a better choice.
+	Blade contribReducer = BuiltIn.of { List< Blade > args ->
 		
 		if ( args.size() != 1 )
-			return new CalcErr( error: Builtin.of(
-					"Expected 1 argument to interpretDeclaration and"
-				 + " got ${args.size()}." ) )
+			return new CalcErr( error: BuiltIn.of(
+					"Expected 1 argument to contribReducer and got"
+				 + " ${args.size()}." ) )
 		
 		def ( arg ) = args
 		
+		// If not for the type sanity check here, the call to hardAsk
+		// could be avoided and the CalcResult could be returned
+		// right here.
+		return hardAsk( arg ) { contribs ->
+			
+			if ( !(contribs in BladeMultiset) )
+				return new CalcErr( error: BuiltIn.of(
+						"The argument to contribReducer wasn't a"
+					 + " multiset." ) )
+			
+			return new CalcResult( value: contribs )
+		}
+	}
+	
+	Blade declarationsSig = new Sig(
+		parent: sigBase, derivative: BuiltIn.of( "declarations" ) )
+	
+	Blade interpretDeclaration = BuiltIn.of { List< Blade > args ->
+		
+		if ( args.size() != 1 )
+			return new CalcErr( error: BuiltIn.of(
+					"Expected 1 argument to interpretDeclaration and"
+				 + " got ${args.size()}." ) )
+		
+		def ( declaration ) = args
+		
 		// TODO: Make declarations more meaningful than just
-		// non-errors.
-		return new CalcResult( value: new LeadEnd() )
+		// contributing to a multiset of declarations.
+		return new CalcResult( value: new LeadContrib(
+			sig: declarationsSig,
+			reducer: contribReducer,
+			value: declaration,
+			next:
+				BuiltIn.of { new CalcResult( value: new LeadEnd() ) }
+		) )
 	}
 	
 	Set< Lead > initialLeads = []
+	
 	parsedProject.each { path, declarations ->
 		
 		for ( declaration in declarations )
@@ -179,8 +241,9 @@ def bladeCore = { File projectFile ->
 				initialLeads.add new LeadErr(
 					error: BuiltIn.of( declaration ) )
 			else
-				initialLeads.add calcCall( interpretDeclaration, [
-					new BracketChunk( path, declaration ) ] )
+				initialLeads.add new LeadCalc(
+					calc: calcCall( interpretDeclaration, [
+						new BracketChunk( path, declaration ) ] ) )
 		}
 	}
 	
@@ -208,7 +271,21 @@ def bladeCore = { File projectFile ->
 }
 
 // This should have a rather empty result; resource.txt isn't even a
-// .blade file, so it will be completely ignored.
+// .blade file, so it will be completely ignored. As an effect of
+// this, the "declarations" multiset which appears in the results of
+// the other lists won't appear at all in this one, since it isn't
+// contributed to at all here. Although intuitively a "declarations"
+// built-in variable should still exist when it's an empty set,
+// these examples don't go to the trouble to achieve that, so the
+// absence of the variable is indeed the expected result here.
 println bladeCore( BladeTests.getResourceFile( "/resource.txt" ) )
+
+// This is a test with two declarations.
+println bladeCore( BladeTests.getResourceFile(
+	"/bladeproject/something.blade" ) )
+
+// This is a test with two declarations in one file and one
+// declaration in another.
+println bladeCore( BladeTests.getResourceFile( "/bladeproject" ) )
 
 println "Finishing BladeTestSandbox"

@@ -29,7 +29,11 @@ class BladeNamespace implements Blade {
 	String toString() { "BladeNamespace$map" }
 }
 
-class BladeSet implements Blade { Set< Blade > contents }
+class BladeMultiset implements Blade {
+	List< Blade > contents
+	
+	String toString() { "BladeMultiset$contents" }
+}
 
 class LeadInfo { Blade lead; List< Blade > promises = [] }
 
@@ -180,7 +184,10 @@ final class TopLevel
 			{
 				def existingReducer = reducers[ ancestor ]
 				if ( null.is( existingReducer ) )
+				{
+					getRef ancestor
 					reducers[ ancestor ] = namespaceReducer
+				}
 				else
 				{
 					def compatible =
@@ -197,6 +204,7 @@ final class TopLevel
 			def existingReducer = reducers[ sig ]
 			if ( null.is( existingReducer ) )
 			{
+				getRef sig
 				reducers[ sig ] = reducer
 				
 				def contribSetRef = new Ref()
@@ -334,7 +342,6 @@ final class TopLevel
 			{
 				if (
 					!reducers.containsKey( sig )
-					|| reductions.containsKey( sig )
 					|| (refIsSet( sig )
 						&& Refs.isSetDirect( contribSetRefs[ sig ] ))
 					|| !leadInfos.every { (
@@ -370,8 +377,8 @@ final class TopLevel
 					if ( Refs.isSetDirect( contribSetRefs[ sig ] ) )
 						continue
 					
-					Refs.set contribSetRefs[ sig ], new BladeSet(
-						contents: contribs[ sig ] as Set )
+					Refs.set contribSetRefs[ sig ],
+						new BladeMultiset( contents: contribs[ sig ] )
 					
 					didAnything = true
 				}
