@@ -20,6 +20,8 @@
 
 package com.rocketnia.blade
 
+import com.rocketnia.blade.weak.*
+
 
 interface Blade {}
 
@@ -33,6 +35,24 @@ class BuiltIn implements Blade {
 	static BuiltIn of( value ) { new BuiltIn( value: value ) }
 	
 	String toString() { "BuiltIn(${value.inspect()})" }
+}
+
+class BladeString implements Blade, Internable {
+	protected String value
+	
+	protected static final Interner< BladeString > interner =
+		new Interner< BladeString >()
+	
+	protected BladeString( String value ) { this.value = value }
+	
+	static BladeString of( String value )
+		{ interner[ new BladeString( new String( value ) ) ] }
+	
+	String getInternKey() { value }
+	
+	String toString() { "bs" + value.inspect() }
+	
+	String toJava() { value }
 }
 
 final class Misc

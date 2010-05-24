@@ -93,7 +93,7 @@ def bladeCore = { File projectFile ->
 		// TODO: Support extending this from within Blade.
 		
 		if ( args.size() != 2 )
-			return new CalcErr( error: BuiltIn.of(
+			return new CalcErr( error: BladeString.of(
 					"Expected 2 arguments to iso and got"
 				 + " ${args.size()}." ) )
 		
@@ -165,13 +165,13 @@ def bladeCore = { File projectFile ->
 			of { List< Blade > args ->
 				
 				if ( args.size() != 0 )
-					return new CalcErr( error: BuiltIn.of(
+					return new CalcErr( error: BladeString.of(
 							"Expected 0 arguments to a CalcHardAsk"
 						 + " continuation and got ${args.size()}." ) )
 				
 				def derefedAgain = Refs.derefSoft( derefed )
 				if ( derefedAgain in Ref )
-					return new CalcErr( error: BuiltIn.of(
+					return new CalcErr( error: BladeString.of(
 							"A hard ask was continued before it was"
 						 + " fulfilled." ) )
 				
@@ -188,7 +188,7 @@ def bladeCore = { File projectFile ->
 	Blade contribReducer = BuiltIn.of { List< Blade > args ->
 		
 		if ( args.size() != 1 )
-			return new CalcErr( error: BuiltIn.of(
+			return new CalcErr( error: BladeString.of(
 					"Expected 1 argument to contribReducer and got"
 				 + " ${args.size()}." ) )
 		
@@ -200,7 +200,7 @@ def bladeCore = { File projectFile ->
 		return hardAsk( arg ) { contribs ->
 			
 			if ( !(contribs in BladeMultiset) )
-				return new CalcErr( error: BuiltIn.of(
+				return new CalcErr( error: BladeString.of(
 						"The argument to contribReducer wasn't a"
 					 + " multiset." ) )
 			
@@ -208,13 +208,14 @@ def bladeCore = { File projectFile ->
 		}
 	}
 	
-	Blade declarationsSig = new Sig(
-		parent: sigBase, derivative: BuiltIn.of( "declarations" ) )
+	Closure sig = { String... derivs -> derivs.inject sigBase,
+		{ p, d -> new Sig(
+			parent: p, derivative: BladeString.of( d ) ) } }
 	
 	Blade interpretDeclaration = BuiltIn.of { List< Blade > args ->
 		
 		if ( args.size() != 1 )
-			return new CalcErr( error: BuiltIn.of(
+			return new CalcErr( error: BladeString.of(
 					"Expected 1 argument to interpretDeclaration and"
 				 + " got ${args.size()}." ) )
 		
@@ -223,7 +224,7 @@ def bladeCore = { File projectFile ->
 		// TODO: Make declarations more meaningful than just
 		// contributing to a multiset of declarations.
 		return new CalcResult( value: new LeadContrib(
-			sig: declarationsSig,
+			sig: sig( "declarations" ),
 			reducer: contribReducer,
 			value: declaration,
 			next:
@@ -257,10 +258,9 @@ def bladeCore = { File projectFile ->
 	// TODO: Contribute something actually meaningful here.
 	//
 	initialLeads.add new LeadContrib(
-		sig: new Sig(
-			parent: sigBase, derivative: BuiltIn.of( "sample-var" ) ),
+		sig: sig( "sample-var" ),
 		reducer: BuiltIn.of { new CalcResult(
-			value: BuiltIn.of( "sample-value" ) ) },
+			value: BladeString.of( "sample-value" ) ) },
 		value: BuiltIn.of( null ),
 		next: BuiltIn.of { new CalcResult( value: new LeadEnd() ) }
 	)
