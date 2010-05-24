@@ -122,7 +122,7 @@ class DocumentSelection
 		DocumentLocation from
 		
 		DocumentSelection to( DocumentLocation to )
-			{ new DocumentSelection( from, to ) }
+			{ DocumentSelection.of from, to }
 		
 		DocumentSelection to(
 			int lineNumber, LineLocation lineLocation )
