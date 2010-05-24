@@ -137,11 +137,10 @@ class LineLocation
 	
 	private isoRep() { [ LineLocation, counts ] }
 	int hashCode() { isoRep().hashCode() }
-	boolean equals( Object other ) { !null.is( other ) && Misc.
-		let { Class c = owner.class, oc = other.class -> c.is( oc ) ?
-			((LineLocation)other).isoRep().equals( isoRep() ) :
-			c.isAssignableFrom( oc ) && other.equals( this ) }
-	}
+	boolean equals( Object o ) { !null.is( o ) && (is( o ) ||
+		Misc.let { Class c = owner.class, oc = o.class -> c.is( oc ) ?
+			((LineLocation)o).isoRep().equals( isoRep() ) :
+			c.isAssignableFrom( oc ) && o.equals( this ) }) }
 	
 	private static final noCase = new Object()
 	private static final comparableCase = { null.is it }

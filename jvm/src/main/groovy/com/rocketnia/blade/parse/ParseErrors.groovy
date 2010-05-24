@@ -51,9 +51,8 @@ class ErrorSelection
 	
 	private isoRep() { [ ErrorSelection, message, selection ] }
 	int hashCode() { isoRep().hashCode() }
-	boolean equals( Object other ) { !null.is( other ) && Misc.
-		let { Class c = owner.class, oc = other.class -> c.is( oc ) ?
-			((ErrorSelection)other).isoRep().equals( isoRep() ) :
-			c.isAssignableFrom( oc ) && other.equals( this ) }
-	}
+	boolean equals( Object o ) { !null.is( o ) && (is( o ) ||
+		Misc.let { Class c = owner.class, oc = o.class -> c.is( oc ) ?
+			((ErrorSelection)o).isoRep().equals( isoRep() ) :
+			c.isAssignableFrom( oc ) && o.equals( this ) }) }
 }

@@ -48,11 +48,10 @@ class DocumentLocation
 	private isoRep()
 		{ [ DocumentLocation, lineNumber, lineLocation ] }
 	int hashCode() { isoRep().hashCode() }
-	boolean equals( Object other ) { !null.is( other ) && Misc.
-		let { Class c = owner.class, oc = other.class -> c.is( oc ) ?
-			((DocumentLocation)other).isoRep().equals( isoRep() ) :
-			c.isAssignableFrom( oc ) && other.equals( this ) }
-	}
+	boolean equals( Object o ) { !null.is( o ) && (is( o ) ||
+		Misc.let { Class c = owner.class, oc = o.class -> c.is( oc ) ?
+			((DocumentLocation)o).isoRep().equals( isoRep() ) :
+			c.isAssignableFrom( oc ) && o.equals( this ) }) }
 	
 	String toString() { "$lineNumber:$lineLocation" }
 	
@@ -99,11 +98,10 @@ class DocumentSelection
 	
 	private isoRep() { [ DocumentSelection, start, stop ] }
 	int hashCode() { isoRep().hashCode() }
-	boolean equals( Object other ) { !null.is( other ) && Misc.
-		let { Class c = owner.class, oc = other.class -> c.is( oc ) ?
-			((DocumentSelection)other).isoRep().equals( isoRep() ) :
-			c.isAssignableFrom( oc ) && other.equals( this ) }
-	}
+	boolean equals( Object o ) { !null.is( o ) && (is( o ) ||
+		Misc.let { Class c = owner.class, oc = o.class -> c.is( oc ) ?
+			((DocumentSelection)o).isoRep().equals( isoRep() ) :
+			c.isAssignableFrom( oc ) && o.equals( this ) }) }
 	
 	String toString() { "$start-$stop" }
 	
