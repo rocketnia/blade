@@ -120,20 +120,21 @@ continuation of the above paragraph.
 			sel( 0, 22 ) + 1
 		] ]
 		
-		assertEquals BladeParser.parseProject( BladeTests.
-			getResourceFile( "/bladeproject/something.blade" ) ),
-			[ "": somethingBrackets ]
+		def parseProj = { file -> BladeParser.
+			parseProject( BladeTests.getResourceFile( file ) ).
+			collect { it in BracketView ?
+				[ it.path, it.brackets ] : it } as Set }
 		
-		assertEquals BladeParser.parseProject(
-			BladeTests.getResourceFile(
-				"/bladeproject/subdir/somethingelse.blade" ) ),
-			[ "": somethingElseBrackets ]
+		assertEquals parseProj( "/bladeproject/something.blade" ),
+			somethingBrackets.collect { [ "", it ] } as Set
 		
-		assertEquals BladeParser.parseProject(
-			BladeTests.getResourceFile( "/bladeproject" ) ),
-			[
-				"something.blade": somethingBrackets,
-				"subdir/somethingelse.blade": somethingElseBrackets
-			]
+		assertEquals parseProj(
+			"/bladeproject/subdir/somethingelse.blade" ),
+			somethingElseBrackets.collect { [ "", it ] } as Set
+		
+		assertEquals parseProj( "/bladeproject" ),
+			(somethingBrackets.collect { [ "something.blade", it ] } +
+			somethingElseBrackets.collect { [
+				"subdir/somethingelse.blade", it ] }) as Set
 	}
 }

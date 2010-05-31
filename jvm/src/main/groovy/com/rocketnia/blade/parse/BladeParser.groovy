@@ -290,12 +290,12 @@ final class BladeParser
 	static List parseParagraphedBrackets( String code )
 		{ parseParagraphedBrackets ListDocument.of( code ) }
 	
-	static Map< String, List > parseProject( File root )
+	static Set parseProject( File root )
 	{
 		if ( null.is( root ) || !root.exists() )
 			return null
 		
-		def result = [:]
+		Set result = []
 		for ( File file: Misc.getNonDirs( root ).
 			findAll { it.getName() =~ /\.blade$/ } )
 		{
@@ -307,11 +307,24 @@ final class BladeParser
 			)
 				relativeParts.add parent.getName()
 			
-			result[ relativeParts.reverse().join( '/' ) ] =
-				parseParagraphedBrackets(
-					new ListDocument( file.readLines() ) )
+			def path = relativeParts.reverse().join( '/' )
+			def doc = new ListDocument( file.readLines() )
+			for ( brackets in parseParagraphedBrackets( doc ) )
+				result.add brackets in ErrorSelection ? brackets :
+					new BracketView(
+						path: path, doc: doc, brackets: brackets )
 		}
 		
 		return result
 	}
+}
+
+class BracketView implements Blade
+{
+	String path
+	Document doc
+	List brackets
+	
+	String toString()
+		{ "BracketView( ${path.inspect()}, ${brackets.inspect()} )" }
 }

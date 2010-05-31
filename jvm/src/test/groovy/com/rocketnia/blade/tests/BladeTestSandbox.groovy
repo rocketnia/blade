@@ -67,25 +67,9 @@ println BladeParser.parseProject(
 println BladeParser.parseProject(
 	BladeTests.getResourceFile( "/bladeproject/something.blade" ) )
 
-class BracketChunk implements Blade
-{
-	String path
-	List bracketSelections
-	
-	BracketChunk( String path, List bracketSelections )
-	{
-		this.path = path
-		this.bracketSelections = bracketSelections
-	}
-	
-	String toString()
-		{ "BracketChunk( ${path.inspect()}, $bracketSelections )" }
-}
-
 def bladeCore = { File projectFile ->
 	
-	Map< String, List > parsedProject =
-		BladeParser.parseProject( projectFile )
+	Set parsedProject = BladeParser.parseProject( projectFile )
 	
 	Blade bladeReducerIso = BuiltIn.of { List< Blade > args ->
 		
@@ -219,33 +203,57 @@ def bladeCore = { File projectFile ->
 					"Expected 1 argument to interpretDeclaration and"
 				 + " got ${args.size()}." ) )
 		
-		def ( declaration ) = args
+		def ( arg ) = args
 		
-		// TODO: Make declarations more meaningful than just
-		// contributing to a multiset of declarations.
-		return new CalcResult( value: new LeadContrib(
-			sig: sig( "declarations" ),
-			reducer: contribReducer,
-			value: declaration,
-			next:
-				BuiltIn.of { new CalcResult( value: new LeadEnd() ) }
-		) )
+		return hardAsk( arg ) { declaration ->
+			
+			if ( !(declaration in BracketView) )
+				return new CalcErr( error: BladeString.of(
+						"The argument to interpretDeclaration wasn't"
+					+ " a BracketChun." ) )
+			
+			def view = (BracketView)declaration
+			
+			DocumentSelection firstSelection =
+				view.brackets.head()
+			
+			List firstLines =
+				Documents.contents( view.doc, firstSelection )
+			
+			if ( firstLines.isEmpty() )
+				return new CalcResult( value: new LeadEnd() )
+			
+			String firstPart = firstLines.head()
+			
+			def headWordMatch = firstPart =~ /^\s*(\S*)\s/
+			
+			if ( !headWordMatch )
+				return new CalcResult( value: new LeadEnd() )
+			
+			String headWord = headWordMatch[ 0 ][ 1 ]
+			
+			// TODO: Make declarations more meaningful than just
+			// contributing to a multiset of declarations.
+			return new CalcResult( value: new LeadContrib(
+				sig: sig( "declarations" ),
+				reducer: contribReducer,
+				value: BuiltIn.of( [ headWord, declaration ] ),
+				next: BuiltIn.
+					of { new CalcResult( value: new LeadEnd() ) }
+			) )
+		}
 	}
 	
 	Set< Lead > initialLeads = []
 	
-	parsedProject.each { path, declarations ->
-		
-		for ( declaration in declarations )
-		{
-			if ( declaration in ErrorSelection )
-				initialLeads.add new LeadErr(
-					error: BuiltIn.of( declaration ) )
-			else
-				initialLeads.add new LeadCalc(
-					calc: calcCall( interpretDeclaration, [
-						new BracketChunk( path, declaration ) ] ) )
-		}
+	for ( declaration in parsedProject )
+	{
+		if ( declaration in ErrorSelection )
+			initialLeads.add new LeadErr(
+				error: BuiltIn.of( declaration ) )
+		else
+			initialLeads.add new LeadCalc( calc:
+				calcCall( interpretDeclaration, [ declaration ] ) )
 	}
 	
 	// If the Blade program makes no explicit contributions and we

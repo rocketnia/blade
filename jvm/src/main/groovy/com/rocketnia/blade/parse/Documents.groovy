@@ -72,20 +72,18 @@ final class Documents
 	static List< String > contents(
 		Document document, DocumentSelection selection )
 	{
-		int documentSize = document.size()
-		
 		DocumentLocation stop = selection.stop
 		int stopLine = stop.lineNumber
 		
-		if ( stopLine < document.size() )
+		if ( document.size() <= stopLine )
 			throw new IndexOutOfBoundsException()
 		
 		DocumentLocation start = selection.start
 		int startLine = start.lineNumber
 		
 		if ( startLine == stopLine )
-			return contents( document[ startLine ],
-				start.lineLocation, stop.lineLocation )
+			return [ contents( document[ startLine ],
+				start.lineLocation, stop.lineLocation ) ]
 		
 		def result =
 			[ contents( document[ startLine ], start.lineLocation ) ]
