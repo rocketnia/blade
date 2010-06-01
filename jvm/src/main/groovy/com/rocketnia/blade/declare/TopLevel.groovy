@@ -394,7 +394,8 @@ final class TopLevel
 			
 			if ( !didAnything )
 				throw new RuntimeException(
-					"There was a dependency loop." )
+						"Either there was a dependency loop or"
+					+ " something undefined was requested." )
 		}
 	}
 }

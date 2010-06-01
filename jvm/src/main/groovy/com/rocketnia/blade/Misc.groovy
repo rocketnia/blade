@@ -59,7 +59,7 @@ final class Misc
 {
 	private Misc() {}
 	
-	static let( f ) { f() }
+	static let( Closure f ) { f() }
 	
 	static boolean anyNonDir( File file, Closure body )
 	{
