@@ -138,57 +138,65 @@ final class TopLevel
 		
 		Blade bladeDefinitionIso = bladeDefinitionIsoMaker( getRef )
 		
-		def makeAncestorsNamespaces = { sig ->
+		def definitionIso = { a, b ->
 			
-			for ( ancestor in Sigs.sigAncestors( sig ).tail() )
-			{
-				def existingType = types[ ancestor ]
-				if ( existingType == typeNamespace )
-					continue
-				
-				if ( existingType != null )
-					throw new RuntimeException(
-						"A reduction type conflict occurred." )
-				
-				types[ ancestor ] = typeNamespace
-				getRef ancestor
-			}
+			def ( Calc isoCalc, did ) = Calcs.advanceCalcRepeatedly(
+				calcCall( bladeDefinitionIso, [ a, b ] ),
+				calcCall,
+				getRef
+			)
 			
-			return null
+			if ( isoCalc in CalcResult )
+				return bladeTruthy( ((CalcResult)isoCalc).value )
+			
+			while ( isoCalc in CalcCalc )
+				isoCalc = ((CalcCalc)isoCalc).calc
+			
+			return ((CalcHardAsk)isoCalc).ref
 		}
 		
-		def addDefinition = { sig, calc ->
+		def weAlreadyKnowItIs = { sig, type ->
 			
 			def existingType = types[ sig ]
-			if ( existingType == typeConstant )
-				return
+			if ( existingType == type )
+				return true
 			
 			if ( existingType != null )
 				throw new RuntimeException(
 					"A reduction type conflict occurred." )
 			
-			types[ sig ] = typeConstant
+			types[ sig ] = type
 			getRef sig
+			return false
+		}
+		
+		def makeAncestorsNamespaces = { sig ->
 			
-			def compatible = makeAncestorsNamespaces( sig )
-			if ( compatible != null )
-				return compatible
+			for ( ancestor in Sigs.sigAncestors( sig ).tail() )
+				if ( weAlreadyKnowItIs( ancestor, typeNamespace ) )
+					return
+		}
+		
+		def addDefinition = { sig, calc ->
 			
-			def existingDefinition = originalDefinitions[ sig ]
-			if ( existingDefinition == null )
-			{
-				originalDefinitions[ sig ] = calc
-				definitions[ sig ] = calc
-			}
-			else
+			def itAlreadyIs = weAlreadyKnowItIs( sig, typeConstant )
+			
+			makeAncestorsNamespaces( sig )
+			
+			if ( itAlreadyIs )
 			{
 				def isoResult =
-					definitionIso( calc, existingDefinition )
+					definitionIso( calc, originalDefinitions[ sig ] )
 				if ( isoResult == false )
 					throw new RuntimeException(
 						"A definition conflict occurred." )
 				else if ( isoResult != true )
 					return isoResult
+			}
+			else
+			{
+				originalDefinitions[ sig ] = calc
+				definitions[ sig ] = calc
 			}
 			
 			return null
@@ -196,20 +204,10 @@ final class TopLevel
 		
 		def addBagContrib = { sig, value ->
 			
-			def existingType = types[ sig ]
-			if ( existingType == typeBag )
+			if ( weAlreadyKnowItIs( sig, typeBag ) )
 				return
 			
-			if ( existingType != null )
-				throw new RuntimeException(
-					"A reduction type conflict occurred." )
-			
-			types[ sig ] = typeBag
-			getRef sig
-			
-			def compatible = makeAncestorsNamespaces( sig )
-			if ( compatible != null )
-				return compatible
+			makeAncestorsNamespaces( sig )
 			
 			contribs.push sig, value
 			return null
