@@ -20,6 +20,7 @@
 
 package com.rocketnia.blade
 
+import com.rocketnia.blade.declare.*
 import com.rocketnia.blade.weak.*
 
 
@@ -35,6 +36,44 @@ class BuiltIn implements Blade {
 	static BuiltIn of( value ) { new BuiltIn( value: value ) }
 	
 	String toString() { "BuiltIn(${value.inspect()})" }
+	
+	
+	static CalcSoftAsk softAsk( Blade sig, Closure body )
+		{ new CalcSoftAsk( sig: sig, next: of { List< Blade > args ->
+				
+				if ( args.size() != 1 )
+					return new CalcErr( error: BladeString.of(
+							"Expected 1 argument to a CalcSoftAsk"
+						 + " continuation and got ${args.size()}." ) )
+				
+				return new CalcResult( value: body( args.head() ) )
+		} ) }
+	
+	static Calc hardAsk( Blade ref, Closure body )
+	{
+		def derefed = Refs.derefSoft( ref )
+		
+		if ( !(derefed in Ref) )
+			return body( derefed )
+		
+		return new CalcHardAsk( ref: derefed, next:
+			of { List< Blade > args ->
+				
+				if ( args.size() != 0 )
+					return new CalcErr( error: BladeString.of(
+							"Expected 0 arguments to a CalcHardAsk"
+						 + " continuation and got ${args.size()}." ) )
+				
+				def derefedAgain = Refs.derefSoft( derefed )
+				if ( derefedAgain in Ref )
+					return new CalcErr( error: BladeString.of(
+							"A hard ask was continued before it was"
+						 + " fulfilled." ) )
+				
+				return new CalcResult( value: body( derefedAgain ) )
+			}
+		)
+	}
 }
 
 class BladeString implements Blade, Internable {

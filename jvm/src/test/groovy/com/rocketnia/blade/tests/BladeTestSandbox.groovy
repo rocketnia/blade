@@ -115,47 +115,6 @@ def bladeCore = { File projectFile ->
 	Blade sigBase = [ toString: { "sigBase" } ] as Blade
 	
 	
-	def hardAsk = { ref, Closure body ->
-		
-		def derefed = Refs.derefSoft( ref )
-		
-		if ( !(derefed in Ref) )
-			return body( derefed )
-		
-		return new CalcHardAsk( ref: derefed, next: BuiltIn.
-			of { List< Blade > args ->
-				
-				if ( args.size() != 0 )
-					return new CalcErr( error: BladeString.of(
-							"Expected 0 arguments to a CalcHardAsk"
-						 + " continuation and got ${args.size()}." ) )
-				
-				def derefedAgain = Refs.derefSoft( derefed )
-				if ( derefedAgain in Ref )
-					return new CalcErr( error: BladeString.of(
-							"A hard ask was continued before it was"
-						 + " fulfilled." ) )
-				
-				return new CalcResult( value: body( derefedAgain ) )
-			}
-		)
-	}
-	
-	def softAsk = { sig, Closure body ->
-		
-		return new CalcSoftAsk( sig: sig, next: BuiltIn.
-			of { List< Blade > args ->
-				
-				if ( args.size() != 1 )
-					return new CalcErr( error: BladeString.of(
-						"Expected 1 argument to a CalcSoftAsk"
-					 + " continuation and got ${args.size()}." ) )
-				
-				return new CalcResult( value: body( args.head() ) )
-			}
-		)
-	}
-	
 	Closure calcCall = { Blade fnRef, List< Blade > args ->
 		
 		// TODO: Support more type-specific behavior.
@@ -163,7 +122,7 @@ def bladeCore = { File projectFile ->
 		// while maintaining the semantics that the fn here should act
 		// as a pure function that returns only Calcs.
 		
-		return hardAsk( fnRef ) { fn ->
+		return BuiltIn.hardAsk( fnRef ) { fn ->
 			
 			if ( fn in BuiltIn )
 			{
@@ -194,12 +153,10 @@ def bladeCore = { File projectFile ->
 					"Expected 1 argument to contribReducer and got"
 				 + " ${args.size()}." ) )
 		
-		def ( arg ) = args
-		
 		// If not for the type sanity check here, the call to hardAsk
 		// could be avoided and the CalcResult could be returned
 		// right here.
-		return hardAsk( arg ) { contribs ->
+		return BuiltIn.hardAsk( args.head() ) { contribs ->
 			
 			if ( !(contribs in BladeMultiset) )
 				return new CalcErr( error: BladeString.of(
@@ -224,7 +181,7 @@ def bladeCore = { File projectFile ->
 					"Expected 1 argument to interpretDeclaration and"
 				 + " got ${args.size()}." ) )
 		
-		return hardAsk( args.head() ) { declaration ->
+		return BuiltIn.hardAsk( args.head() ) { declaration ->
 			
 			if ( !(declaration in BracketView) )
 				return new CalcErr( error: BladeString.of(
@@ -276,7 +233,8 @@ def bladeCore = { File projectFile ->
 				path: view.path, doc: view.doc, brackets: newBrackets
 			)
 			
-			return softAsk( sig( "ext", "blade", headWord ) ) { (
+			return BuiltIn.softAsk(
+				sig( "ext", "blade", headWord ) ) { (
 				
 				new CalcCalc( calc: calcCall( it, [ newView ] ) )
 			) }
@@ -312,7 +270,7 @@ def bladeCore = { File projectFile ->
 							'Expected 1 argument to the "blade"'
 						+ " top-level op and got ${args.size()}." ) )
 				
-				return hardAsk( args.head() ) { declaration ->
+				return BuiltIn.hardAsk( args.head() ) { declaration ->
 					
 					if ( !(declaration in BracketView) )
 						return new CalcErr( error: BladeString.of(
@@ -408,7 +366,8 @@ def bladeCore = { File projectFile ->
 					def bodyView = new BracketView(
 						path: view.path, doc: doc, brackets: body )
 					
-					return softAsk( sigFromList( siggedHeader ) ) {
+					return BuiltIn.softAsk(
+						sigFromList( siggedHeader ) ) {
 						
 						return new CalcResult(
 							value: calcCall( it, [ bodyView ] ) )
@@ -430,7 +389,7 @@ def bladeCore = { File projectFile ->
 							"Expected 1 argument to groovy-eval and"
 						 + " got ${args.size()}." ) )
 				
-				return hardAsk( args.head() ) { declaration ->
+				return BuiltIn.hardAsk( args.head() ) { declaration ->
 					
 					if ( !(declaration in BracketView) )
 						return new CalcErr( error: BladeString.of(
