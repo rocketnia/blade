@@ -36,14 +36,12 @@ class LeadDefine extends Lead {
 	Blade setNext( Blade val ) { set "next", val }
 }
 
-// A contribution of value to sig, expecting reducer to ultimately
-// reduce the values. The next field is a nullary Blade function that
-// will return a new Lead. Note that value can be a soft reference.
-class LeadContrib extends Lead {
+// A contribution of value to a multiset at sig. The next field is a
+// nullary Blade function that will return a new Lead. Note that value
+// can be a soft reference.
+class LeadBagContrib extends Lead {
 	Blade getSig() { get "sig" }
 	Blade setSig( Blade val ) { set "sig", val }
-	Blade getReducer() { get "reducer" }
-	Blade setReducer( Blade val ) { set "reducer", val }
 	Blade getValue() { get "value" }
 	Blade setValue( Blade val ) { set "value", val }
 	Blade getNext() { get "next" }
@@ -94,11 +92,12 @@ final class Leads
 	// This returns a two-element list containing a Lead and a boolean
 	// indicating whether any advancement actually happened. The Lead
 	// will be either a LeadEnd, a LeadSplit, a LeadDefine, a
-	// LeadContrib, or a LeadCalc whose inner Calc is a valid result
-	// for { a, b, c -> Calcs.advanceCalcRepeatedly( a, b, c )[ 0 ] }.
-	// However, it will only be a LeadDefine or a LeadContrib if none
-	// of the lead's promises reject the sig and at least one of them
-	// requires an unsatisfied hard ask.
+	// LeadBagContrib, or a LeadCalc whose inner Calc is a valid
+	// result for
+	// { a, b, c -> Calcs.advanceCalcRepeatedly( a, b, c )[ 0 ] }.
+	// However, it will only be a LeadDefine or a LeadBagContrib if
+	// none of the lead's promises reject the sig and at least one of
+	// them requires an unsatisfied hard ask.
 	//
 	// The addDefinition parameter should be a function with side
 	// effects that takes a sig and a calc. It shouldn't test the sig
@@ -108,20 +107,18 @@ final class Leads
 	// when comparing calcs, it should return the ref which is asked
 	// for.
 	//
-	// The addContrib parameter should be a function with side effects
-	// that takes a sig, a reducer, and a contributed value. It
-	// shouldn't test the sig against the lead's promises; this takes
-	// care of that step already. The return value of addContrib
-	// should usually be null, but in case the contribution is
-	// obstructed by a hard ask when comparing reducers, it should
-	// return the ref which is asked for.
+	// The addBagContrib parameter should be a function with side
+	// effects that takes a sig and a contributed value. It shouldn't
+	// test the sig against the lead's promises; this takes care of
+	// that step already. The return value of addBagContrib is
+	// ignored.
 	//
 	// The bladeTruthy parameter should be a closure that accepts a
 	// Blade value and returns either true, false, or a hard-asked-for
 	// ref.
 	//
 	static List advanceLeadRepeatedly( Lead lead, Closure calcCall,
-		Closure getRef, Closure addDefinition, Closure addContrib,
+		Closure getRef, Closure addDefinition, Closure addBagContrib,
 		Closure addPromise, Closure getPromises, Closure bladeTruthy )
 	{
 		def harden = { [
@@ -204,8 +201,8 @@ final class Leads
 					calc: calcCall( lead2.getNext(), [] ) )
 				break
 				
-			case LeadContrib:
-				def lead2 = (LeadContrib)lead
+			case LeadBagContrib:
+				def lead2 = (LeadBagContrib)lead
 				
 				def sig = lead2.getSig()
 				
@@ -223,16 +220,7 @@ final class Leads
 				if ( !null.is( neededRef ) )
 					return harden( neededRef )
 				
-				def reducer = lead2.getReducer()
-				neededRef = Refs.anyNeededRef( reducer )
-				if ( !null.is( neededRef ) )
-					return harden( neededRef )
-				
-				neededRef =
-					addContrib( sig, reducer, lead2.getValue() )
-				
-				if ( !null.is( neededRef ) )
-					return harden( neededRef )
+				addBagContrib( sig, lead2.getValue() )
 				
 				lead = new LeadCalc(
 					calc: calcCall( lead2.getNext(), [] ) )

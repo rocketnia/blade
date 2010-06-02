@@ -24,10 +24,6 @@ import com.rocketnia.blade.*
 
 
 // A sig is a list of values representing a path of namespaces.
-// Contributing to a sig is the same as contributing a contribution
-// object to the sig's parent, where the sig's parent uses a
-// particular reducer which creates a namespace full of multivals out
-// of a bunch of contribution objects.
 class Sig extends RefMap {
 	Blade getDerivative() { get "derivative" }
 	Blade setDerivative( Blade val ) { set "derivative", val }

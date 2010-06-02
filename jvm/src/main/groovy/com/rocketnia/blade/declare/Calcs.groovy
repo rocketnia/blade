@@ -25,7 +25,7 @@ import com.rocketnia.blade.*
 
 abstract class Calc extends RefMap {}
 
-// A request for a reference to the reduced value of sig. The value
+// A request for a reference to the resolved value of sig. The value
 // isn't needed yet, so it can be filled in later using mutation. The
 // next field is a Blade function that will take the answer and return
 // a new Calc.

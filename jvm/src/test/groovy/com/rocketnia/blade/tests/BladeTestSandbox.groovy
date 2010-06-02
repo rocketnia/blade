@@ -94,7 +94,6 @@ def bladeCore = { File projectFile ->
 	}
 	
 	Closure bladeDefinitionIsoMaker = { Closure getRef -> bladeIso }
-	Closure bladeReducerIsoMaker = { Closure getRef -> bladeIso }
 	
 	Closure bladeTruthyInteractive = { Blade blade, Closure getRef ->
 		
@@ -108,8 +107,6 @@ def bladeCore = { File projectFile ->
 		return true
 	}
 	
-	Blade namespaceReducer =
-		[ toString: { "namespaceReducer" } ] as Blade
 	Blade sigBase = [ toString: { "sigBase" } ] as Blade
 	
 	
@@ -136,32 +133,6 @@ def bladeCore = { File projectFile ->
 			return new CalcErr( error: BladeString.of(
 					"Tried to invoke something other than a built-in"
 				 + " function." ) )
-		}
-	}
-	
-	// Note that this reducer produces BladeMultisets but never
-	// produces an empty BladeMultiset, since contribution sets are
-	// never empty. (We don't specify a reducer until we contribute.)
-	// For general-purpose multiset construction, a reducer that
-	// appends its contributions would be a better choice.
-	Blade contribReducer = BuiltIn.of { List< Blade > args ->
-		
-		if ( args.size() != 1 )
-			return new CalcErr( error: BladeString.of(
-					"Expected 1 argument to contribReducer and got"
-				 + " ${args.size()}." ) )
-		
-		// If not for the type sanity check here, the call to hardAsk
-		// could be avoided and the CalcResult could be returned
-		// right here.
-		return BuiltIn.hardAsk( args.head() ) { contribs ->
-			
-			if ( !(contribs in BladeMultiset) )
-				return new CalcErr( error: BladeString.of(
-						"The argument to contribReducer wasn't a"
-					 + " multiset." ) )
-			
-			return new CalcResult( value: contribs )
 		}
 	}
 	
@@ -253,7 +224,7 @@ def bladeCore = { File projectFile ->
 	
 	// If the Blade program makes no explicit contributions and we
 	// don't make any automatic ones, then sigBase won't have any
-	// contributions, and it won't be able to reduce.
+	// contributions, and bladeTopLevel() won't be able to resolve it.
 	//
 	// Since we are in fact making at least these two automatic
 	// contributions, we don't have to worry about that.
@@ -413,8 +384,8 @@ def bladeCore = { File projectFile ->
 	)
 	
 	return TopLevel.bladeTopLevel(
-		initialLeads, bladeDefinitionIsoMaker, bladeReducerIsoMaker,
-		bladeTruthyInteractive, calcCall, namespaceReducer, sigBase )
+		initialLeads, bladeDefinitionIsoMaker, bladeTruthyInteractive,
+		calcCall, sigBase )
 }
 
 // This should have a rather empty result; resource.txt isn't even a
