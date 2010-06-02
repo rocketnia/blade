@@ -61,14 +61,18 @@ final class TopLevel
 	// rather than that deadlock showing up as a potential dependency
 	// loop.
 	//
-	// The bladeReducerIsoMaker parameter should be a Groovy closure
-	// that takes a getRef closure and returns a Blade functon. The
-	// getRef parameter will be a function that translates sigs into
-	// the (possibly unfulfilled) Refs this top-level computation
-	// associates with them. The resulting Blade function will be
-	// called using calcCall, and it should take two reducers and
-	// return a Blade-style boolean value (translatable by
-	// bladeTruthyInteractive).
+	// The bladeDefinitionIsoMaker parameter should be a Groovy
+	// closure that takes a getRef closure and returns a Blade
+	// functon. The getRef parameter will be a function that
+	// translates sigs into the (possibly unfulfilled) Refs this
+	// top-level computation associates with them. The resulting Blade
+	// function will be called using calcCall, and it should take two
+	// definition calcs and return a Blade-style boolean value
+	// (translatable by bladeTruthyInteractive).
+	//
+	// The bladeReducerIsoMaker parameter should work the same way as
+	// the bladeDefinitionIsoMaker does, but the resulting Blade
+	// function should instead take two reducers.
 	//
 	// The bladeTruthyInteractive parameter should be a closure that
 	// takes a Blade value and a getRef closure and returns either
@@ -122,13 +126,16 @@ final class TopLevel
 	// abort manually.
 	//
 	static Blade bladeTopLevel( Set< Lead > initialLeads,
-		Closure bladeReducerIsoMaker, Closure bladeTruthyInteractive,
-		Closure calcCall, Blade namespaceReducer, Blade sigBase )
+		Closure bladeDefinitionIsoMaker, Closure bladeReducerIsoMaker,
+		Closure bladeTruthyInteractive, Closure calcCall,
+		Blade namespaceReducer, Blade sigBase )
 	{
 		Set< LeadInfo > leadInfos =
 			initialLeads.collect { new LeadInfo( lead: it ) }
 		
 		SigMap reductionRefs = new SigMap()
+		SigMap definitions = new SigMap()
+		SigMap originalDefinitions = new SigMap()
 		SigMap reductions = new SigMap()
 		SigMap reducers = new SigMap()
 		SigMap contribSetRefs = new SigMap()
@@ -149,6 +156,7 @@ final class TopLevel
 		
 		def bladeTruthy = { bladeTruthyInteractive it, getRef }
 		
+		Blade bladeDefinitionIso = bladeDefinitionIsoMaker( getRef )
 		Blade bladeReducerIso = bladeReducerIsoMaker( getRef )
 		
 		def reducerIso = { a, b ->
@@ -170,15 +178,7 @@ final class TopLevel
 		
 		def isNamespaceReducer = { reducerIso it, namespaceReducer }
 		
-		def addContrib = { sig, reducer, value ->
-			
-			def directly = isNamespaceReducer( reducer )
-			if ( directly == true )
-				throw new RuntimeException(
-					   "A contribution was made using the namespace"
-					+ " reducer directly." )
-			else if ( directly != false )
-				return directly
+		def makeAncestorsNamespaces = { sig ->
 			
 			for ( ancestor in Sigs.sigAncestors( sig ).tail() )
 			{
@@ -200,6 +200,58 @@ final class TopLevel
 						return compatible
 				}
 			}
+			
+			return null
+		}
+		
+		def addDefinition = { sig, calc ->
+			
+			if ( reducers.containsKey( sig ) )
+				throw new RuntimeException(
+					"A definition/contrib conflict occurred." )
+			
+			def compatible = makeAncestorsNamespaces( sig )
+			if ( compatible != null )
+				return compatible
+			
+			def existingDefinition = originalDefinitions[ sig ]
+			if ( null.is( existingDefinition ) )
+			{
+				getRef sig
+				originalDefinitions[ sig ] = calc
+				definitions[ sig ] = calc
+			}
+			else
+			{
+				def isoResult =
+					definitionIso( calc, existingDefinition )
+				if ( isoResult == false )
+					throw new RuntimeException(
+						"A reducer conflict occurred." )
+				else if ( isoResult != true )
+					return isoResult
+			}
+			
+			return null
+		}
+		
+		def addContrib = { sig, reducer, value ->
+			
+			def directly = isNamespaceReducer( reducer )
+			if ( directly == true )
+				throw new RuntimeException(
+					   "A contribution was made using the namespace"
+					+ " reducer directly." )
+			else if ( directly != false )
+				return directly
+			
+			if ( originalDefinitions.containsKey( sig ) )
+				throw new RuntimeException(
+					"A definition/contrib conflict occurred." )
+			
+			def compatible = makeAncestorsNamespaces( sig )
+			if ( compatible != null )
+				return compatible
 			
 			def existingReducer = reducers[ sig ]
 			if ( null.is( existingReducer ) )
@@ -245,6 +297,7 @@ final class TopLevel
 					leadInfo.lead,
 					calcCall,
 					getRef,
+					addDefinition,
 					addContrib,
 					{ leadInfo.promises =
 						[ it ] + leadInfo.promises },
@@ -255,6 +308,27 @@ final class TopLevel
 			leadInfo.lead = newLead
 			
 			return didAnything
+		}
+		
+		def advanceDefinition = { sig ->
+			
+			def ( Calc result, boolean didAnything ) =
+				Calcs.advanceCalcRepeatedly(
+					definitions[ sig ], calcCall, getRef )
+			
+			if ( result in CalcResult )
+			{
+				definitions.remove sig
+				setRef sig, result.value
+				return true
+			}
+			else if ( didAnything )
+			{
+				definitions[ sig ] = result
+				return true
+			}
+			
+			return false
 		}
 		
 		def advanceReduction = { sig ->
@@ -304,6 +378,10 @@ final class TopLevel
 				else throw new RuntimeException(
 					"A LeadSplit split into at least one non-Lead." )
 			}
+			
+			for ( sig in definitions.keySet().clone() )
+				if ( advanceDefinition( sig ) )
+					didAnything = true
 			
 			for ( sig in reductions.keySet().clone() )
 				if ( advanceReduction( sig ) )
@@ -395,7 +473,7 @@ final class TopLevel
 			if ( !didAnything )
 				throw new RuntimeException(
 						"Either there was a dependency loop or"
-					+ " something undefined was requested." )
+					 + " something undefined was requested." )
 		}
 	}
 }

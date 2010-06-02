@@ -71,7 +71,7 @@ def bladeCore = { File projectFile ->
 	
 	Set parsedProject = BladeParser.parseProject( projectFile )
 	
-	Blade bladeReducerIso = BuiltIn.of { List< Blade > args ->
+	Blade bladeIso = BuiltIn.of { List< Blade > args ->
 		
 		// TODO: Support more type-specific behavior.
 		// TODO: Support extending this from within Blade.
@@ -93,10 +93,8 @@ def bladeCore = { File projectFile ->
 		return new CalcResult( value: BuiltIn.of( result ) )
 	}
 	
-	Closure bladeReducerIsoMaker = { Closure getRef ->
-		
-		return bladeReducerIso
-	}
+	Closure bladeDefinitionIsoMaker = { Closure getRef -> bladeIso }
+	Closure bladeReducerIsoMaker = { Closure getRef -> bladeIso }
 	
 	Closure bladeTruthyInteractive = { Blade blade, Closure getRef ->
 		
@@ -135,9 +133,9 @@ def bladeCore = { File projectFile ->
 				}
 			}
 			
-			return new CalcErr( error:
+			return new CalcErr( error: BladeString.of(
 					"Tried to invoke something other than a built-in"
-				 + " function." )
+				 + " function." ) )
 		}
 	}
 	
@@ -260,9 +258,9 @@ def bladeCore = { File projectFile ->
 	// Since we are in fact making at least these two automatic
 	// contributions, we don't have to worry about that.
 	
-	initialLeads.add new LeadContrib(
+	initialLeads.add new LeadDefine(
 		sig: sig( "ext", "blade", "blade" ),
-		reducer: BuiltIn.of { new CalcResult( value:
+		calc: new CalcResult( value:
 			BuiltIn.of { List< Blade > args ->
 				
 				if ( args.size() != 1 )
@@ -374,14 +372,13 @@ def bladeCore = { File projectFile ->
 					}
 				}
 			}
-		) },
-		value: BuiltIn.of( null ),
+		),
 		next: BuiltIn.of { new CalcResult( value: new LeadEnd() ) }
 	)
 	
-	initialLeads.add new LeadContrib(
+	initialLeads.add new LeadDefine(
 		sig: sig( "impl", "jvm-blade", "groovy-eval" ),
-		reducer: BuiltIn.of { new CalcResult( value:
+		calc: new CalcResult( value:
 			BuiltIn.of { List< Blade > args ->
 				
 				if ( args.size() != 1 )
@@ -411,14 +408,13 @@ def bladeCore = { File projectFile ->
 						value: Eval.me( stringContents ) )
 				}
 			}
-		) },
-		value: BuiltIn.of( null ),
+		),
 		next: BuiltIn.of { new CalcResult( value: new LeadEnd() ) }
 	)
 	
 	return TopLevel.bladeTopLevel(
-		initialLeads, bladeReducerIsoMaker, bladeTruthyInteractive,
-		calcCall, namespaceReducer, sigBase )
+		initialLeads, bladeDefinitionIsoMaker, bladeReducerIsoMaker,
+		bladeTruthyInteractive, calcCall, namespaceReducer, sigBase )
 }
 
 // This should have a rather empty result; resource.txt isn't even a

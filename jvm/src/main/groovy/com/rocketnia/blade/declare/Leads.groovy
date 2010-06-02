@@ -25,6 +25,17 @@ import com.rocketnia.blade.*
 
 abstract class Lead extends RefMap {}
 
+// A definition of sig as the result of calc. The next field is a
+// nullary Blade function that will return a new Lead.
+class LeadDefine extends Lead {
+	Blade getSig() { get "sig" }
+	Blade setSig( Blade val ) { set "sig", val }
+	Blade getCalc() { get "calc" }
+	Blade setCalc( Blade val ) { set "calc", val }
+	Blade getNext() { get "next" }
+	Blade setNext( Blade val ) { set "next", val }
+}
+
 // A contribution of value to sig, expecting reducer to ultimately
 // reduce the values. The next field is a nullary Blade function that
 // will return a new Lead. Note that value can be a soft reference.
@@ -82,19 +93,27 @@ final class Leads
 	
 	// This returns a two-element list containing a Lead and a boolean
 	// indicating whether any advancement actually happened. The Lead
-	// will be either a LeadEnd, a LeadSplit, a LeadContrib, or a
-	// LeadCalc whose inner Calc is a valid result for
-	// { a, b, c -> Calcs.advanceCalcRepeatedly( a, b, c )[ 0 ] }.
-	// However, it will only be a LeadContrib if none of the lead's
-	// promises reject the sig and at least one of them requires an
-	// unsatisfied hard ask.
+	// will be either a LeadEnd, a LeadSplit, a LeadDefine, a
+	// LeadContrib, or a LeadCalc whose inner Calc is a valid result
+	// for { a, b, c -> Calcs.advanceCalcRepeatedly( a, b, c )[ 0 ] }.
+	// However, it will only be a LeadDefine or a LeadContrib if none
+	// of the lead's promises reject the sig and at least one of them
+	// requires an unsatisfied hard ask.
+	//
+	// The addDefinition parameter should be a function with side
+	// effects that takes a sig and a calc. It shouldn't test the sig
+	// against the lead's promises; this takes care of that step
+	// already. The return value of addDefinition should usually be
+	// null, but in case the contribution is obstructed by a hard ask
+	// when comparing calcs, it should return the ref which is asked
+	// for.
 	//
 	// The addContrib parameter should be a function with side effects
 	// that takes a sig, a reducer, and a contributed value. It
-	// shouldn't test the contribution against the lead's promises;
-	// this takes care of that step already. The return value of
-	// addContrib should usually be null, but in case the contribution
-	// is obstructed by a hard ask when comparing reducers, it should
+	// shouldn't test the sig against the lead's promises; this takes
+	// care of that step already. The return value of addContrib
+	// should usually be null, but in case the contribution is
+	// obstructed by a hard ask when comparing reducers, it should
 	// return the ref which is asked for.
 	//
 	// The bladeTruthy parameter should be a closure that accepts a
@@ -102,14 +121,40 @@ final class Leads
 	// ref.
 	//
 	static List advanceLeadRepeatedly( Lead lead, Closure calcCall,
-		Closure getRef, Closure addContrib, Closure addPromise,
-		Closure getPromises, Closure bladeTruthy )
+		Closure getRef, Closure addDefinition, Closure addContrib,
+		Closure addPromise, Closure getPromises, Closure bladeTruthy )
 	{
 		def harden = { [
 			new LeadCalc( calc: new CalcHardAsk(
 				ref: it, next: BuiltIn.of { lead } ) ),
 			true
 		] }
+		
+		def satisfiesPromises = { sig ->
+			
+			for ( filter in getPromises() )
+			{
+				def ( Calc advanced, did ) =
+					Calcs.advanceCalcRepeatedly(
+						calcCall( filter, [ sig ] ),
+						calcCall,
+						getRef
+					)
+				
+				if ( advanced in CalcHardAsk )
+					return null
+				
+				def truth = bladeTruthy(
+					((CalcResult)advanced).getValue() )
+				
+				if ( truth == false )
+					return false
+				else if ( truth != true )
+					return null
+			}
+			
+			return true
+		}
 		
 		for ( boolean didAnything = false; ; didAnything = true )
 		{
@@ -127,43 +172,52 @@ final class Leads
 				throw new RuntimeException(
 					"A lead resulted in this error: $error" )
 				
+			case LeadDefine:
+				def lead2 = (LeadDefine)lead
+				
+				def sig = lead2.getSig()
+				
+				// TODO: See if this would be better as a LeadErr
+				// instead.
+				def works = satisfiesPromises( sig )
+				if ( works == false )
+					throw new RuntimeException(
+							"A lead broke a promise not to contribute"
+						 + " to this sig: ${lead2.getSig()}" )
+				else if ( works != true )
+					return [ lead, didAnything ]
+				
+				def neededRef = Refs.anyNeededRef( sig )
+				if ( !null.is( neededRef ) )
+					return harden( neededRef )
+				
+				def calc = lead2.getCalc()
+				neededRef = Refs.anyNeededRef( calc )
+				if ( !null.is( neededRef ) )
+					return harden( neededRef )
+				
+				neededRef = addDefinition( sig, calc )
+				if ( !null.is( neededRef ) )
+					return harden( neededRef )
+				
+				lead = new LeadCalc(
+					calc: calcCall( lead2.getNext(), [] ) )
+				break
+				
 			case LeadContrib:
 				def lead2 = (LeadContrib)lead
 				
 				def sig = lead2.getSig()
 				
-				boolean anyAsks = false
-				for ( filter in getPromises() )
-				{
-					def ( Calc advanced, did ) =
-						Calcs.advanceCalcRepeatedly(
-							calcCall( filter, [ sig ] ),
-							calcCall,
-							getRef
-						)
-					
-					if ( advanced in CalcHardAsk )
-						anyAsks = true
-					else
-					{
-						def truth = bladeTruthy(
-							((CalcResult)advanced).getValue() )
-						
-						// TODO: See if this would be better as a
-						// LeadErr instead.
-						if ( truth == false )
-						throw new RuntimeException(
-							   "A lead broke a promise not to"
-							+ " contribute to this sig:"
-							+ " ${lead2.getSig()}" )
-						else if ( truth != true )
-							anyAsks = true
-					}
-				}
-				
-				if ( anyAsks )
+				// TODO: See if this would be better as a LeadErr
+				// instead.
+				def works = satisfiesPromises( sig )
+				if ( works == false )
+					throw new RuntimeException(
+							"A lead broke a promise not to contribute"
+						 + " to this sig: ${lead2.getSig()}" )
+				else if ( works != true )
 					return [ lead, didAnything ]
-				
 				
 				def neededRef = Refs.anyNeededRef( sig )
 				if ( !null.is( neededRef ) )
