@@ -130,9 +130,10 @@ final class TopLevel
 			return managedRefs[ sig ] = new Ref()
 		} }
 		
-		def refIsSet = { Refs.isSetDirect getRef( it ) }
+		def refIsSet = { ((Ref)getRef( it )).isResolved() }
 		
-		def setRef = { sig, val -> Refs.set getRef( sig ), val }
+		def setRef =
+			{ sig, val -> ((Ref)getRef( sig )).resolveTo val }
 		
 		def bladeTruthy = { bladeTruthyInteractive it, getRef }
 		
@@ -282,9 +283,11 @@ final class TopLevel
 				}
 				else if ( lead in Ref )
 				{
-					if ( Refs.isSetDirect( lead ) )
+					def leadRef = (Ref)lead
+					
+					if ( leadRef.isResolved() )
 					{
-						leadInfo.lead = Refs.derefSoft( lead )
+						leadInfo.lead = leadRef.derefSoft()
 						
 						didAnything = true
 					}
@@ -349,7 +352,7 @@ final class TopLevel
 					Map map = [:]
 					for ( kid in kids )
 						map[ kid.derivative ] =
-							Refs.derefSoft( getRef( kid ) )
+							((Ref)getRef( kid )).derefSoft()
 					
 					setRef sig, new BladeNamespace( map: map )
 					
@@ -366,9 +369,9 @@ final class TopLevel
 			
 			didAnything = didAnything || managedRefs.size() != oldSize
 			
-			if ( leadInfos.empty &&
-				managedRefs.values().every( Refs.&isSetDirect ) )
-				return Refs.derefSoft( getRef( sigBase ) )
+			if ( leadInfos.empty && managedRefs.values().
+				every { ((Ref)it).isResolved() } )
+				return ((Ref)getRef( sigBase )).derefSoft()
 			
 			if ( !didAnything )
 				throw new RuntimeException(

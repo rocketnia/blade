@@ -22,61 +22,53 @@ package com.rocketnia.blade
 
 
 class Ref implements Blade {
-	Blade value
+	private Blade value
 	
 	boolean isResolved() { !null.is( value ) }
-	synchronized void resolve( Blade value ) { this.value = value }
 	
 	String toString()
 		{ isResolved() ? "Ref>$value" : "Ref(unresolved)" }
+	
+	synchronized Blade derefSoft()
+	{
+		if ( null.is( value ) )
+			return this
+		
+		if ( !(value in Ref) )
+			return value
+		
+		return value = ((Ref)value).derefSoft()
+	}
+	
+	void resolveTo( Blade value )
+	{
+		value = Refs.derefSoft( value )
+		
+		if ( is( value ) )
+			throw new IllegalArgumentException(
+				"A reference can't be set to itself." )
+		
+		synchronized ( this )
+		{
+			if ( null.is( this.value ) )
+				this.value = value
+			else
+				throw new IllegalStateException(
+						"The resolveTo method was called on an"
+					 + " already resolved reference." )
+		}
+	}
 }
 
 final class Refs
 {
 	private Refs() {}
 	
-	static void set( Ref ref, Blade val )
-	{
-		if ( isSetDirect( ref ) )
-			throw new RuntimeException(
-				"A reference sent to Refs.set was already set." )
-		
-		while ( isSetDirect( val ) )
-			val = ((Ref)val).value
-		
-		if ( ref.is( val ) )
-			throw new RuntimeException(
-				"A reference can't be set to itself." )
-		
-		ref.resolve val
-	}
-	
 	static Blade derefSoft( Blade ref )
-	{
-		if ( !isSetDirect( ref ) )
-			return ref
-		
-		Blade val = ((Ref)ref).value
-		
-		if ( !isSetDirect( val ) )
-			return val
-		
-		List< Ref > thingsToSet = [ ref, val ]
-		
-		while ( isSetDirect( val = ((Ref)val).value ) )
-			thingsToSet.add val
-		
-		for ( Ref thing in thingsToSet )
-			thing.value = val
-		
-		return val
-	}
+		{ ref in Ref ? ((Ref)ref).derefSoft() : ref }
 	
 	static boolean isSetIndirect( Blade ref )
 		{ !(derefSoft( ref ) in Ref) }
-	
-	static boolean isSetDirect( Blade ref )
-		{ ref in Ref && ((Ref)ref).isResolved() }
 	
 	static Ref anyNeededRef( Blade rootNode )
 	{
@@ -112,10 +104,10 @@ class RefMap implements Blade
 	{
 		Blade ref = refs[ name ]
 		
-		if ( !Refs.isSetDirect( ref ) )
+		if ( !(ref in Ref) )
 			return ref
 		
-		return refs[ name ] = Refs.derefSoft( ref )
+		return refs[ name ] = ((Ref)ref).derefSoft()
 	}
 	
 	Blade set( String name, Blade value ) { refs[ name ] = value }

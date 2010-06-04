@@ -56,6 +56,8 @@ class BuiltIn implements Blade {
 		if ( !(derefed in Ref) )
 			return body( derefed )
 		
+		def derefedRef = (Ref)derefed
+		
 		return new CalcHardAsk( ref: derefed, next:
 			of { List< Blade > args ->
 				
@@ -64,7 +66,7 @@ class BuiltIn implements Blade {
 							"Expected 0 arguments to a CalcHardAsk"
 						 + " continuation and got ${args.size()}." ) )
 				
-				def derefedAgain = Refs.derefSoft( derefed )
+				def derefedAgain = derefedRef.derefSoft()
 				if ( derefedAgain in Ref )
 					return new CalcErr( error: BladeString.of(
 							"A hard ask was continued before it was"
