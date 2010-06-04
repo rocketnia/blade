@@ -23,45 +23,29 @@ package com.rocketnia.blade.declare
 import com.rocketnia.blade.*
 
 
-class BladeNamespace implements Blade {
-	Map map
-	
-	String toString() { "BladeNamespace$map" }
-}
-
-class BladeMultiset implements Blade {
-	List< Blade > contents
-	
-	String toString() { "BladeMultiset$contents" }
-}
-
 class LeadInfo { Blade lead; List< Blade > promises = [] }
 
 final class TopLevel
 {
 	private TopLevel() {}
 	
-	// This takes a bunch of initial Leads, follows them, and returns
-	// the resolved value associated with the sigBase parameter. Even
-	// if the return value can be determined early, the leads will
-	// still be followed to their conclusions so that promise breaking
-	// can be detected, and as those breaches are being looked for, a
-	// dependency loop may be detected instead.
+	// This follows Leads until they end, then returns the resolved
+	// value associated with the sigBase parameter. Even if the return
+	// value can be determined early, the leads will still be followed
+	// to their conclusions so that promise breaking can be detected,
+	// and as those breaches are being looked for, a dependency loop
+	// or undefined value may be detected instead.
 	//
-	// The bladeDefinitionIsoMaker parameter should be a Groovy
-	// closure that takes a getRef closure and returns a Blade
-	// functon. The getRef parameter will be a function that
-	// translates sigs into the (possibly unfulfilled) Refs this
-	// top-level computation associates with them. The resulting Blade
-	// function will be called using calcCall, and it should take two
-	// definition calcs and return a Blade-style boolean value
-	// (translatable by bladeTruthyInteractive).
+	// The sigBase parameter should be whatever Blade value is
+	// appropriate for representing the sig that stands for the base
+	// of the namespace tree and the ultimate result of this
+	// calculation. This value doesn't need to have any functionality
+	// besides identity; it can be given as "new Blade() {}" if
+	// there's no more appropriate alternative.
 	//
-	// The bladeTruthyInteractive parameter should be a closure that
-	// takes a Blade value and a getRef closure and returns either
-	// true, false, or a hard-asked-for ref. The getRef parameter will
-	// be a function that translates sigs into their (possibly
-	// unfulfilled) Refs.
+	// The bladeTruthy parameter should be a closure that takes a
+	// Blade value and returns either true, false, or a hard-asked-for
+	// Ref.
 	//
 	// The calcCall parameter should be a closure that takes a Blade
 	// value and a Groovy List of Blade values and returns a Calc
@@ -69,14 +53,14 @@ final class TopLevel
 	// all of the Blade values may be unresolved Refs; if their values
 	// are needed in the calculation, that's the point of CalcHardAsk.
 	//
-	// The sigBase parameter should be whatever Blade values is
-	// appropriate for representing the sig that stands for the base
-	// of the namespace tree and the ultimate result of this
-	// calculation. This value doesn't need to have any functionality
-	// besides identity; it can be given as "new Blade() {}" if
-	// there's no more appropriate alternative.
+	// The refBaseToInitial parameter should be a closure that takes a
+	// Ref corresponding to sigBase, records it somewhere where
+	// bladeTruthy and calcCall can find it (if they need to), and
+	// returns a set of initial Leads. It can also be used in order to
+	// set up further Refs for bladeTruthy, calcCall, the initial
+	// Leads, and other code in the caller to rely on.
 	//
-	// TODO: See what special abilities a typeBag can have. For
+	// TODO: See what special abilities a bag Ref can have. For
 	// instance, a Calc could ask "does any element of the multiset
 	// satisfy this property?" and a Lead could split into one lead
 	// per element of the multiset, such each of those Leads can spawn
@@ -103,128 +87,26 @@ final class TopLevel
 	// developer to be able to see errors as they're found and to
 	// abort manually.
 	//
-	static Blade bladeTopLevel( Set< Lead > initialLeads,
-		Closure bladeDefinitionIsoMaker,
-		Closure bladeTruthyInteractive, Closure calcCall,
-		Blade sigBase )
+	static Blade bladeTopLevel( Blade sigBase, Closure bladeTruthy,
+		Closure calcCall, Closure refBaseToInitial )
 	{
-		Set< LeadInfo > leadInfos =
-			initialLeads.collect { new LeadInfo( lead: it ) }
+		Set< Ref > managedRefs = [] as Set
 		
-		SigMap managedRefs = new SigMap()
-		SigMap types = new SigMap()
-		SigMap definitions = new SigMap()
-		SigMap originalDefinitions = new SigMap()
-		SigMap contribs = new SigMap()
+		def refRegistrar = { managedRefs.add it }
 		
-		def typeConstant = new Object()
-		def typeBag = new Object()
-		def typeNamespace = new Object()
+		def refBase = new Ref( sigBase, refRegistrar )
 		
-		def getRef = { Blade sig -> managedRefs[ sig ] ?: Misc.let {
-			
-			for ( ancestor in Sigs.sigAncestors( sig ).tail() )
-				managedRefs[ ancestor ] ?:
-					(managedRefs[ ancestor ] = new Ref())
-			
-			return managedRefs[ sig ] = new Ref()
-		} }
+		Set< LeadInfo > leadInfos = refBaseToInitial( refBase ).
+			collect { new LeadInfo( lead: it ) }
 		
-		def refIsSet = { ((Ref)getRef( it )).isResolved() }
-		
-		def setRef =
-			{ sig, val -> ((Ref)getRef( sig )).resolveTo val }
-		
-		def bladeTruthy = { bladeTruthyInteractive it, getRef }
-		
-		Blade bladeDefinitionIso = bladeDefinitionIsoMaker( getRef )
-		
-		def definitionIso = { a, b ->
-			
-			def ( Calc isoCalc, did ) = Calcs.advanceCalcRepeatedly(
-				calcCall( bladeDefinitionIso, [ a, b ] ),
-				calcCall,
-				getRef
-			)
-			
-			if ( isoCalc in CalcResult )
-				return bladeTruthy( ((CalcResult)isoCalc).value )
-			
-			while ( isoCalc in CalcCalc )
-				isoCalc = ((CalcCalc)isoCalc).calc
-			
-			return ((CalcHardAsk)isoCalc).ref
-		}
-		
-		def weAlreadyKnowItIs = { sig, type ->
-			
-			def existingType = types[ sig ]
-			if ( existingType == type )
-				return true
-			
-			if ( existingType != null )
-				throw new RuntimeException(
-					"A reduction type conflict occurred." )
-			
-			types[ sig ] = type
-			getRef sig
-			return false
-		}
-		
-		def makeAncestorsNamespaces = { sig ->
-			
-			for ( ancestor in Sigs.sigAncestors( sig ).tail() )
-				if ( weAlreadyKnowItIs( ancestor, typeNamespace ) )
-					return
-		}
-		
-		def addDefinition = { sig, calc ->
-			
-			def itAlreadyIs = weAlreadyKnowItIs( sig, typeConstant )
-			
-			makeAncestorsNamespaces( sig )
-			
-			if ( itAlreadyIs )
-			{
-				def isoResult =
-					definitionIso( calc, originalDefinitions[ sig ] )
-				if ( isoResult == false )
-					throw new RuntimeException(
-						"A definition conflict occurred." )
-				else if ( isoResult != true )
-					return isoResult
-			}
-			else
-			{
-				originalDefinitions[ sig ] = calc
-				definitions[ sig ] = calc
-			}
-			
-			return null
-		}
-		
-		def addBagContrib = { sig, value ->
-			
-			if ( weAlreadyKnowItIs( sig, typeBag ) )
-				return
-			
-			makeAncestorsNamespaces( sig )
-			
-			contribs.push sig, value
-			return null
-		}
-		
-		def promiseRejects1 = { filter, sig ->
+		def promiseRejects = { filter, sig ->
 			
 			def ( Calc result, did ) = Calcs.advanceCalcRepeatedly(
-				calcCall( filter, [ sig ] ), calcCall, getRef )
+				calcCall( filter, [ sig ] ), calcCall )
 			
 			return result in CalcResult &&
-				(bladeTruthy( ((CalcResult)result).value ) == false)
+				bladeTruthy( ((CalcResult)result).value ) == false
 		}
-		
-		def promiseRejects = { filter, sig -> Sigs.
-			sigAncestors( sig ).any { promiseRejects1 filter, it } }
 		
 		def advanceLead = { leadInfo ->
 			
@@ -232,9 +114,6 @@ final class TopLevel
 				Leads.advanceLeadRepeatedly(
 					leadInfo.lead,
 					calcCall,
-					getRef,
-					addDefinition,
-					addBagContrib,
 					{ leadInfo.promises =
 						[ it ] + leadInfo.promises },
 					{ -> leadInfo.promises },
@@ -246,137 +125,89 @@ final class TopLevel
 			return didAnything
 		}
 		
-		def advanceDefinition = { sig ->
-			
-			def ( Calc result, boolean didAnything ) =
-				Calcs.advanceCalcRepeatedly(
-					definitions[ sig ], calcCall, getRef )
-			
-			if ( result in CalcResult )
-			{
-				definitions.remove sig
-				setRef sig, result.value
-				return true
-			}
-			else if ( didAnything )
-			{
-				definitions[ sig ] = result
-				return true
-			}
-			
-			return false
-		}
-		
-		getRef sigBase
-		
 		while ( true )
 		{
 			boolean didAnything = false
 			
-			for ( leadInfo in leadInfos )
-			{
-				def lead = leadInfo.lead
-				if ( lead in Lead )
-				{
-					if ( advanceLead( leadInfo ) )
-						didAnything = true
-				}
-				else if ( lead in Ref )
-				{
-					def leadRef = (Ref)lead
-					
-					if ( leadRef.isResolved() )
-					{
-						leadInfo.lead = leadRef.derefSoft()
-						
-						didAnything = true
-					}
-				}
-				else throw new RuntimeException(
-					"A LeadSplit split into at least one non-Lead." )
-			}
-			
-			for ( sig in definitions.keySet().clone() )
-				if ( advanceDefinition( sig ) )
-					didAnything = true
-			
 			for ( leadInfo in leadInfos.clone() )
 			{
-				if ( leadInfo.lead in LeadEnd )
-				{
-					leadInfos.remove leadInfo
-					didAnything = true
-				}
-			}
-			
-			for ( LeadInfo leadInfo in leadInfos.clone() )
-			{
 				def lead = leadInfo.lead
-				
-				if ( !(lead in LeadSplit) )
-					continue
-				
-				def lead2 = (LeadSplit)lead
-				def promises = leadInfo.promises
-				
-				leadInfos.remove leadInfo
-				leadInfos.add new LeadInfo(
-					lead: lead2.first, promises: promises )
-				leadInfos.add new LeadInfo(
-					lead: lead2.second, promises: promises )
+				switch ( lead )
+				{
+				case LeadEnd:
+					leadInfos.remove leadInfo
+					break
+					
+				case LeadSplit:
+					def lead2 = (LeadSplit)lead
+					def promises = leadInfo.promises
+					
+					leadInfos.remove leadInfo
+					leadInfos.add new LeadInfo(
+						lead: lead2.first, promises: promises )
+					leadInfos.add new LeadInfo(
+						lead: lead2.second, promises: promises )
+					break
+					
+				case Ref:
+					def lead2 = (Ref)lead
+					if ( !lead2.isResolved() )
+						continue
+					
+					leadInfo.lead = lead2.derefSoft()
+					break
+					
+				case Lead:
+					if ( !advanceLead( leadInfo ) )
+						continue
+					break
+					
+				default: throw new RuntimeException(
+					"A LeadSplit split into at least one non-Lead." )
+				}
 				
 				didAnything = true
 			}
 			
 			int oldSize = managedRefs.size()
-			for ( sig in managedRefs.keySet().clone() )
+			for ( ref in managedRefs.clone() )
 			{
-				def type = types[ sig ]
-				if (
-					!(type in [ typeBag, typeNamespace ])
-					|| refIsSet( sig )
-					|| !leadInfos.every { (
-						it.promises.any { promiseRejects it, sig }
-					) }
-				)
+				if ( Refs.isSetIndirect( ref ) )
+				{
+					managedRefs.remove ref
+					didAnything = true
+					continue
+				}
+				
+				if ( !ref.isFinishable() )
 					continue
 				
-				if ( type == typeNamespace )
-				{
-					def kids = managedRefs.
-						keySet().findAll { Sigs.sigIsParent sig, it }
-					
-					if ( !kids.every( refIsSet ) )
-						continue
-					
-					Map map = [:]
-					for ( kid in kids )
-						map[ kid.derivative ] =
-							((Ref)getRef( kid )).derefSoft()
-					
-					setRef sig, new BladeNamespace( map: map )
-					
-					didAnything = true
-				}
-				else
-				{
-					setRef sig,
-						new BladeMultiset( contents: contribs[ sig ] )
-					
-					didAnything = true
-				}
+				def sig = ref.sig
+				if ( !leadInfos.
+					every { it.promises.
+						any { promiseRejects it, sig } } )
+					continue
+				
+				ref.finish()
+				managedRefs.remove ref
+				didAnything = true
 			}
 			
 			didAnything = didAnything || managedRefs.size() != oldSize
 			
-			if ( leadInfos.empty && managedRefs.values().
-				every { ((Ref)it).isResolved() } )
-				return ((Ref)getRef( sigBase )).derefSoft()
+			if ( leadInfos.isEmpty() && managedRefs.isEmpty() )
+				return Refs.derefSoft( refBase )
 			
 			if ( !didAnything )
-				throw new RuntimeException(
-						"Either there was a dependency loop or"
-					 + " something undefined was requested." )
+			{
+				if ( leadInfos.isEmpty() )
+					throw new RuntimeException(
+						"Something requested was never defined." )
+				else
+					throw new RuntimeException(
+							"Either there was a dependency loop or"
+						 + " something requested was never defined." )
+			}
 		}
 	}
 }

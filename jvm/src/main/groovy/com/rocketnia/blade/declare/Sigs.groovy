@@ -32,102 +32,21 @@ class Sig extends RefMap {
 	
 	String toString()
 	{
-		def isoRep = Sigs.sigIsoRep( this )
-		return "Sig" +
-			"( ${isoRep.head()} . ${isoRep.tail().join( ' ' )} )"
-	}
-}
-
-class SigMap {
-	private Map< List< Blade >, ? > entries = [:]
-	
-	def getAt( Blade key ) { entries[ Sigs.sigIsoRep( key ) ] }
-	
-	int size() { entries.size() }
-	def values() { entries.values() }
-	
-	Set< List< Blade > > keySet()
-		{ entries.keySet().collect( Sigs.&sigIsoRepToSig ) }
-	
-	def putAt( Blade key, value )
-		{ entries[ Sigs.sigIsoRep( key ) ] = value }
-	
-	def push( Blade key, elem )
-	{
-		def keyRep = Sigs.sigIsoRep( key )
-		return entries[ keyRep ] =
-			[ elem ] + (entries[ keyRep ] ?: [])
-	}
-	
-	boolean containsKey( Blade key )
-		{ entries.containsKey Sigs.sigIsoRep( key ) }
-	
-	def remove( Blade key )
-		{ entries.remove( Sigs.sigIsoRep( key ) ) }
-	
-	String toString() { "SigMap$entries" }
-}
-
-
-final class Sigs
-{
-	private Sigs() {}
-	
-	// Note that these sigs are assumed to be non-Refs that satisfy
-	// { null.is( Refs.anyNeededRef( it ) ) }.
-	//
-	// Both this and sigIsoRep are used, even if they are a bit
-	// redundant.
-	//
-	static boolean sigIso( Blade a, Blade b )
-	{
-		while ( a in Sig && b in Sig )
-		{
-			def aSig = (Sig)a, bSig = (Sig)b
-			
-			if ( aSig.getDerivative() != bSig.getDerivative() )
-				return false
-			
-			a = aSig.getParent()
-			b = bSig.getParent()
-		}
+		def sig = this
 		
-		return a == b
-	}
-	
-	static List< Blade > sigAncestors( Blade sig )
-	{
-		List< Blade > result = [ sig ]
-		
-		while ( sig in Sig )
-			result.add sig = ((Sig)sig).getParent()
-		
-		return result
-	}
-	
-	static boolean sigIsParent( Blade parent, Blade child )
-		{ child in Sig && sigIso( parent, ((Sig)child).getParent() ) }
-	
-	// Note that the sig is assumed to be a non-Ref that satisfies
-	// { null.is( Refs.anyNeededRef( it ) ) }.
-	static List< Blade > sigIsoRep( Blade sig )
-	{
-		def revResult = [];
+		def revPath = [];
 		
 		while ( sig in Sig )
 		{
 			def sigSig = (Sig)sig
-			revResult.add( sigSig.getDerivative() )
+			revPath.add sigSig.getDerivative()
 			sig = sigSig.getParent()
 		}
 		
-		revResult.add sig
+		revPath.add sig
 		
-		return revResult.reverse()
+		def path = revPath.reverse()
+		
+		return "Sig( ${path.head()} . ${path.tail().join( ' ' )} )"
 	}
-	
-	static Blade sigIsoRepToSig( List< Blade > isoRep )
-		{ ( isoRep.tail().inject( isoRep.head() )
-			{ parent, derivative -> new Sig(
-				parent: parent, derivative: derivative ) } ) }
 }

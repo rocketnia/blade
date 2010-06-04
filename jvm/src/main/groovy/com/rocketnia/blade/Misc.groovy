@@ -37,17 +37,33 @@ class BuiltIn implements Blade {
 	
 	String toString() { "BuiltIn(${value.inspect()})" }
 	
-	
-	static CalcSoftAsk softAsk( Blade sig, Closure body )
-		{ new CalcSoftAsk( sig: sig, next: of { List< Blade > args ->
+	private static LeadSoftAsk softAsk1(
+		Ref source, Blade key, Closure body )
+		{ new LeadSoftAsk( source: source, key: key, next:
+			of { List< Blade > args ->
 				
 				if ( args.size() != 1 )
 					return new CalcErr( error: BladeString.of(
 							"Expected 1 argument to a CalcSoftAsk"
 						 + " continuation and got ${args.size()}." ) )
 				
-				return new CalcResult( value: body( args.head() ) )
-		} ) }
+				return new CalcResult( value: body( args[ 0 ] ) )
+			}
+		) }
+	
+	static Lead softAsk(
+		Ref refBase, List< Blade > derivs, Closure body )
+	{
+		if ( derivs.isEmpty() )
+			return body( refBase )
+		
+		def derivsTail = derivs.tail()
+		
+		return softAsk1( refBase, derivs.head() ) {
+			
+			return softAsk( it, derivsTail, body )
+		}
+	}
 	
 	static Calc hardAsk( Blade ref, Closure body )
 	{

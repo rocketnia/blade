@@ -71,31 +71,7 @@ def bladeCore = { File projectFile ->
 	
 	Set parsedProject = BladeParser.parseProject( projectFile )
 	
-	Blade bladeIso = BuiltIn.of { List< Blade > args ->
-		
-		// TODO: Support more type-specific behavior.
-		// TODO: Support extending this from within Blade.
-		
-		if ( args.size() != 2 )
-			return new CalcErr( error: BladeString.of(
-					"Expected 2 arguments to iso and got"
-				 + " ${args.size()}." ) )
-		
-		def ( arg0, arg1 ) = args
-		
-		def result
-		if ( arg0 in BuiltIn && arg1 in BuiltIn )
-			result = ((BuiltIn)arg0).getValue().equals(
-				((BuiltIn)arg1).getValue() )
-		else
-			result = args[ 0 ] == args[ 1 ]
-		
-		return new CalcResult( value: BuiltIn.of( result ) )
-	}
-	
-	Closure bladeDefinitionIsoMaker = { Closure getRef -> bladeIso }
-	
-	Closure bladeTruthyInteractive = { Blade blade, Closure getRef ->
+	Closure bladeTruthy = { Blade blade ->
 		
 		// TODO: Support more type-specific behavior.
 		// TODO: Support extending this from within Blade.
@@ -109,6 +85,7 @@ def bladeCore = { File projectFile ->
 	
 	Blade sigBase = [ toString: { "sigBase" } ] as Blade
 	
+	Ref refBase
 	
 	Closure calcCall = { Blade fnRef, List< Blade > args ->
 		
@@ -136,115 +113,145 @@ def bladeCore = { File projectFile ->
 		}
 	}
 	
-	Closure sigFromList = { List< String > derivs -> derivs.
-		inject sigBase, { p, d -> new Sig(
-			parent: p, derivative: BladeString.of( d ) ) } }
-	
-	Closure sig =
-		{ String... derivs -> sigFromList( derivs as List ) }
-	
-	Blade interpretDeclaration = BuiltIn.of { List< Blade > args ->
+	return TopLevel.bladeTopLevel( sigBase, bladeTruthy, calcCall ) {
 		
-		if ( args.size() != 1 )
-			return new CalcErr( error: BladeString.of(
-					"Expected 1 argument to interpretDeclaration and"
-				 + " got ${args.size()}." ) )
+		refBase = it
 		
-		return BuiltIn.hardAsk( args.head() ) { declaration ->
-			
-			if ( !(declaration in BracketView) )
-				return new CalcErr( error: BladeString.of(
-						"The argument to interpretDeclaration wasn't"
-					+ " a BracketView." ) )
-			
-			def view = (BracketView)declaration
-			
-			def brackets = view.brackets
-			
-			DocumentSelection firstSelection = brackets.head()
-			
-			List firstLines =
-				Documents.contents( view.doc, firstSelection )
-			
-			if ( firstLines.isEmpty() )
-				return new CalcResult( value: new LeadEnd() )
-			
-			String firstPart = firstLines.join( '\n' )
-			
-			def headWordMatch = firstPart =~ /^\s*(\S+)\s/
-			
-			if ( !headWordMatch )
-				return new CalcResult( value: new LeadEnd() )
-			
-			def ( String headSpace, String headWord ) =
-				headWordMatch[ 0 ]
-			
-			def newlineMatch = headSpace =~ /^.+\n([^\n]+)$/
-			
-			def line = firstSelection.start.lineNumber
-			def linePos
-			if ( newlineMatch )
-			{
-				line += (headSpace =~ /\n/).size()
-				linePos = LineLocation.of( newlineMatch[ 0 ][ 1 ] )
-			}
-			else
-			{
-				linePos = LineLocation.of( headSpace )
-			}
-			
-			def newFirstSelection = DocumentSelection.
-				from( line, linePos ).to( firstSelection.stop )
-			
-			def newBrackets = [ newFirstSelection ] + brackets.tail()
-			
-			def newView = new BracketView(
-				path: view.path, doc: view.doc, brackets: newBrackets
-			)
+		Ref refExtBladeBlade
+		
+		Closure refPathFromList = { List< String > derivs -> derivs.
+			inject refBase,
+				{ Ref p, d -> p.getFromMap BladeString.of( d ) } }
+		
+		Closure refPath =
+			{ String... derivs -> refPathFromList( derivs as List ) }
+		
+		Closure mySoftAsk = { List< String > derivs, Closure body ->
 			
 			return BuiltIn.softAsk(
-				sig( "ext", "blade", headWord ) ) { (
-				
-				new CalcCalc( calc: calcCall( it, [ newView ] ) )
+				refBase, derivs.collect( BladeString.&of ), body )
+		}
+		
+		Set< Lead > initialLeads = []
+		
+		Closure myDefine = { List< String > derivs, Blade value ->
+			
+			initialLeads.add mySoftAsk( derivs ) { new LeadDefine(
+				target: it,
+				value: value,
+				next: BuiltIn.
+					of { new CalcResult( value: new LeadEnd() ) }
 			) }
 		}
-	}
-	
-	Set< Lead > initialLeads = []
-	
-	for ( declaration in parsedProject )
-	{
-		if ( declaration in ErrorSelection )
-			initialLeads.add new LeadErr(
-				error: BuiltIn.of( declaration ) )
-		else
-			initialLeads.add new LeadCalc( calc:
-				calcCall( interpretDeclaration, [ declaration ] ) )
-	}
-	
-	// If the Blade program makes no explicit contributions and we
-	// don't make any automatic ones, then sigBase won't have any
-	// contributions, and bladeTopLevel() won't be able to resolve it.
-	//
-	// Since we are in fact making at least these two automatic
-	// contributions, we don't have to worry about that.
-	
-	initialLeads.add new LeadDefine(
-		sig: sig( "ext", "blade", "blade" ),
-		calc: new CalcResult( value:
+		
+		Blade interpretDeclaration =
+			BuiltIn.of { List< Blade > args ->
+				
+				if ( args.size() != 1 )
+					return new CalcErr( error: BladeString.of(
+							"Expected 1 argument to"
+						 + " interpretDeclaration and got"
+						 + " ${args.size()}." ) )
+				
+				return BuiltIn.hardAsk(
+					args.head() ) { declaration ->
+					
+					if ( !(declaration in BracketView) )
+						return new CalcErr( error: BladeString.of(
+								"The argument to interpretDeclaration"
+							+ " wasn't a BracketView." ) )
+					
+					def view = (BracketView)declaration
+					
+					def brackets = view.brackets
+					
+					DocumentSelection firstSelection = brackets.head()
+					
+					List firstLines =
+						Documents.contents( view.doc, firstSelection )
+					
+					if ( firstLines.isEmpty() )
+						return new CalcResult( value: new LeadEnd() )
+					
+					String firstPart = firstLines.join( '\n' )
+					
+					def headWordMatch = firstPart =~ /^\s*(\S+)\s/
+					
+					if ( !headWordMatch )
+						return new CalcResult( value: new LeadEnd() )
+					
+					def ( String headSpace, String headWord ) =
+						headWordMatch[ 0 ]
+					
+					def newlineMatch = headSpace =~ /^.+\n([^\n]+)$/
+					
+					def line = firstSelection.start.lineNumber
+					def linePos
+					if ( newlineMatch )
+					{
+						line += (headSpace =~ /\n/).size()
+						linePos =
+							LineLocation.of( newlineMatch[ 0 ][ 1 ] )
+					}
+					else
+					{
+						linePos = LineLocation.of( headSpace )
+					}
+					
+					def newFirstSelection = DocumentSelection.
+						from( line, linePos ).
+						to( firstSelection.stop )
+					
+					def newBrackets =
+						[ newFirstSelection ] + brackets.tail()
+					
+					def newView = new BracketView(
+						path: view.path,
+						doc: view.doc,
+						brackets: newBrackets
+					)
+					
+					return new CalcResult( value: mySoftAsk(
+						[ "ext", "blade", headWord ] ) { new LeadCalc(
+							calc: calcCall( it, [ newView ] ) ) } )
+				}
+			}
+		
+		for ( declaration in parsedProject )
+		{
+			if ( declaration in ErrorSelection )
+				initialLeads.add new LeadErr(
+					error: BuiltIn.of( declaration ) )
+			else
+				initialLeads.add new LeadCalc( calc: calcCall(
+					interpretDeclaration, [ declaration ] ) )
+		}
+		
+		// If the Blade program makes no explicit contributions and we
+		// don't make any automatic ones, then sigBase won't have any
+		// contributions, and bladeTopLevel() won't be able to resolve
+		// it.
+		//
+		// Since we are in fact making at least these two automatic
+		// contributions, we don't have to worry about that.
+		
+		myDefine(
+			[ "ext", "blade", "blade" ],
 			BuiltIn.of { List< Blade > args ->
 				
 				if ( args.size() != 1 )
 					return new CalcErr( error: BladeString.of(
 							'Expected 1 argument to the "blade"'
-						+ " top-level op and got ${args.size()}." ) )
+						 + " top-level op and got ${args.size()}."
+					) )
 				
-				return BuiltIn.hardAsk( args.head() ) { declaration ->
+				return BuiltIn.hardAsk(
+					args.head() ) { declaration ->
 					
 					if ( !(declaration in BracketView) )
 						return new CalcErr( error: BladeString.of(
 								'The argument to the "blade"'
-							+ " top-level op wasn't a BracketView."
+							 + " top-level op wasn't a BracketView."
 						) )
 					
 					def view = (BracketView)declaration
@@ -335,21 +342,15 @@ def bladeCore = { File projectFile ->
 					def bodyView = new BracketView(
 						path: view.path, doc: doc, brackets: body )
 					
-					return BuiltIn.softAsk(
-						sigFromList( siggedHeader ) ) {
-						
-						return new CalcResult(
-							value: calcCall( it, [ bodyView ] ) )
-					}
+					return new CalcResult( value:
+						mySoftAsk( siggedHeader ) { new LeadCalc(
+							calc: calcCall( it, [ bodyView ] ) ) } )
 				}
 			}
-		),
-		next: BuiltIn.of { new CalcResult( value: new LeadEnd() ) }
-	)
-	
-	initialLeads.add new LeadDefine(
-		sig: sig( "impl", "jvm-blade", "groovy-eval" ),
-		calc: new CalcResult( value:
+		)
+		
+		myDefine(
+			[ "impl", "jvm-blade", "groovy-eval" ],
 			BuiltIn.of { List< Blade > args ->
 				
 				if ( args.size() != 1 )
@@ -357,7 +358,7 @@ def bladeCore = { File projectFile ->
 							"Expected 1 argument to groovy-eval and"
 						 + " got ${args.size()}." ) )
 				
-				return BuiltIn.hardAsk( args.head() ) { declaration ->
+				return BuiltIn.hardAsk( args[ 0 ] ) { declaration ->
 					
 					if ( !(declaration in BracketView) )
 						return new CalcErr( error: BladeString.of(
@@ -373,19 +374,16 @@ def bladeCore = { File projectFile ->
 						DocumentSelection.
 							from( brackets.first().start ).
 							to( brackets.last().stop )
-					).join( System.getProperty( "line.separator" ) )
+					).join( '\n' )
 					
 					return new CalcResult(
 						value: Eval.me( stringContents ) )
 				}
 			}
-		),
-		next: BuiltIn.of { new CalcResult( value: new LeadEnd() ) }
-	)
-	
-	return TopLevel.bladeTopLevel(
-		initialLeads, bladeDefinitionIsoMaker, bladeTruthyInteractive,
-		calcCall, sigBase )
+		)
+		
+		return initialLeads
+	}
 }
 
 // This should have a rather empty result; resource.txt isn't even a

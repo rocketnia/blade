@@ -25,17 +25,6 @@ import com.rocketnia.blade.*
 
 abstract class Calc extends RefMap {}
 
-// A request for a reference to the resolved value of sig. The value
-// isn't needed yet, so it can be filled in later using mutation. The
-// next field is a Blade function that will take the answer and return
-// a new Calc.
-class CalcSoftAsk extends Calc {
-	Blade getSig() { get "sig" }
-	Blade setSig( Blade val ) { set "sig", val }
-	Blade getNext() { get "next" }
-	Blade setNext( Blade val ) { set "next", val }
-}
-
 // A demand for the given ref to be resolved. The next field is a
 // nullary Blade function that will return a new Calc.
 class CalcHardAsk extends Calc {
@@ -75,10 +64,8 @@ final class Calcs
 	// indicating whether any advancement actually happened. The Calc
 	// will be either a CalcResult, a CalcHardAsk, or a CalcCalc whose
 	// inner Calc is also an allowable result. However, it will never
-	// be a CalcHardAsk for which getRef already returns a filled
-	// reference.
-	static List advanceCalcRepeatedly(
-		Calc calc, Closure calcCall, Closure getRef )
+	// be a CalcHardAsk with a currently resolved reference.
+	static List advanceCalcRepeatedly( Calc calc, Closure calcCall )
 	{
 		def originalCalc = calc
 		
@@ -115,18 +102,6 @@ final class Calcs
 					throw new RuntimeException(
 						   "A calculation resulted in this error:"
 						+ " $error" )
-					
-				case CalcSoftAsk:
-					def calc2 = (CalcSoftAsk)calc
-					
-					def sig = calc2.getSig()
-					def neededRef = Refs.anyNeededRef( sig )
-					if ( !null.is( neededRef ) )
-						return harden( neededRef )
-					
-					calc = new CalcCalc( calc: calcCall(
-						calc2.getNext(), [ getRef( sig ) ] ) )
-					break
 					
 				case CalcHardAsk:
 					def calc2 = (CalcHardAsk)calc

@@ -25,32 +25,44 @@ import com.rocketnia.blade.*
 
 abstract class Lead extends RefMap {}
 
-// A definition of sig as the result of calc. The next field is a
-// nullary Blade function that will return a new Lead.
-class LeadDefine extends Lead {
-	Blade getSig() { get "sig" }
-	Blade setSig( Blade val ) { set "sig", val }
-	Blade getCalc() { get "calc" }
-	Blade setCalc( Blade val ) { set "calc", val }
+// A request for a reference to the value of key in the source map
+// Ref. The value isn't needed yet, so it can be filled in later using
+// mutation. The next field is a Blade function that will take the
+// answer and return a new Lead.
+//
+class LeadSoftAsk extends Lead {
+	Ref source
+	Blade getKey() { get "key" }
+	Blade setKey( Blade val ) { set "key", val }
 	Blade getNext() { get "next" }
 	Blade setNext( Blade val ) { set "next", val }
 }
 
-// A contribution of value to a multiset at sig. The next field is a
-// nullary Blade function that will return a new Lead. Note that value
-// can be a soft reference.
-class LeadBagContrib extends Lead {
-	Blade getSig() { get "sig" }
-	Blade setSig( Blade val ) { set "sig", val }
+// A definition of a target Ref as value. The next field is a nullary
+// Blade function that will return a new Lead.
+class LeadDefine extends Lead {
+	Ref target
 	Blade getValue() { get "value" }
 	Blade setValue( Blade val ) { set "value", val }
 	Blade getNext() { get "next" }
 	Blade setNext( Blade val ) { set "next", val }
 }
 
-// A promise not to contribute to any sig that doesn't satisfy the
-// filter. The next field is a nullary Blade function that will return
-// a new Lead.
+// A contribution of value to a target Ref multiset. The next field is
+// a nullary Blade function that will return a new Lead. Note that
+// value can be a soft reference.
+class LeadBagContrib extends Lead {
+	Ref target
+	Blade getValue() { get "value" }
+	Blade setValue( Blade val ) { set "value", val }
+	Blade getNext() { get "next" }
+	Blade setNext( Blade val ) { set "next", val }
+}
+
+// A promise not to contribute to any Ref with a sig that doesn't
+// satisfy the filter, even by just a LeadSoftAsk for a new child of
+// that Ref. The next field is a nullary Blade function that will
+// return a new Lead.
 class LeadPromise extends Lead {
 	Blade getFilter() { get "filter" }
 	Blade setFilter( Blade val ) { set "filter", val }
@@ -91,34 +103,26 @@ final class Leads
 	
 	// This returns a two-element list containing a Lead and a boolean
 	// indicating whether any advancement actually happened. The Lead
-	// will be either a LeadEnd, a LeadSplit, a LeadDefine, a
-	// LeadBagContrib, or a LeadCalc whose inner Calc is a valid
-	// result for
-	// { a, b, c -> Calcs.advanceCalcRepeatedly( a, b, c )[ 0 ] }.
-	// However, it will only be a LeadDefine or a LeadBagContrib if
-	// none of the lead's promises reject the sig and at least one of
-	// them requires an unsatisfied hard ask.
-	//
-	// The addDefinition parameter should be a function with side
-	// effects that takes a sig and a calc. It shouldn't test the sig
-	// against the lead's promises; this takes care of that step
-	// already. The return value of addDefinition should usually be
-	// null, but in case the contribution is obstructed by a hard ask
-	// when comparing calcs, it should return the ref which is asked
-	// for.
-	//
-	// The addBagContrib parameter should be a function with side
-	// effects that takes a sig and a contributed value. It shouldn't
-	// test the sig against the lead's promises; this takes care of
-	// that step already. The return value of addBagContrib is
-	// ignored.
+	// will be either a LeadEnd, a LeadSplit, a LeadSoftAsk, a
+	// LeadDefine, a LeadBagContrib, or a LeadCalc whose inner Calc is
+	// a valid result for
+	// { a, b -> Calcs.advanceCalcRepeatedly( a, b )[ 0 ] }. However,
+	// it will only be a LeadSoftAsk, a LeadDefine, or a
+	// LeadBagContrib if none of the lead's promises are known to be
+	// broken and and at least one of them requires an unsatisfied
+	// hard ask.
 	//
 	// The bladeTruthy parameter should be a closure that accepts a
 	// Blade value and returns either true, false, or a hard-asked-for
 	// ref.
 	//
+	// TODO: See if the errors here would be better as LeadErr values
+	// instead.
+	//
+	// TODO: See if reduction type errors and definition errors can be
+	// avoided.
+	//
 	static List advanceLeadRepeatedly( Lead lead, Closure calcCall,
-		Closure getRef, Closure addDefinition, Closure addBagContrib,
 		Closure addPromise, Closure getPromises, Closure bladeTruthy )
 	{
 		def harden = { [
@@ -133,10 +137,7 @@ final class Leads
 			{
 				def ( Calc advanced, did ) =
 					Calcs.advanceCalcRepeatedly(
-						calcCall( filter, [ sig ] ),
-						calcCall,
-						getRef
-					)
+						calcCall( filter, [ sig ] ), calcCall )
 				
 				if ( advanced in CalcHardAsk )
 					return null
@@ -169,33 +170,65 @@ final class Leads
 				throw new RuntimeException(
 					"A lead resulted in this error: $error" )
 				
-			case LeadDefine:
-				def lead2 = (LeadDefine)lead
+			case LeadSoftAsk:
+				def lead2 = (LeadSoftAsk)lead
 				
-				def sig = lead2.getSig()
+				def key = lead2.getKey()
+				if ( key in Ref )
+					return harden( key )
 				
-				// TODO: See if this would be better as a LeadErr
-				// instead.
-				def works = satisfiesPromises( sig )
+				def source = lead2.source
+				
+				if ( !source.canGetFromMap() )
+					throw new RuntimeException(
+						"A reduction type conflict occurred." )
+				
+				def works = satisfiesPromises( source.sig )
 				if ( works == false )
 					throw new RuntimeException(
-							"A lead broke a promise not to contribute"
-						 + " to this sig: ${lead2.getSig()}" )
+							"A lead broke a promise not to"
+						 + " contribute to this sig:"
+						 + " ${source.sig}" )
 				else if ( works != true )
 					return [ lead, didAnything ]
 				
-				def neededRef = Refs.anyNeededRef( sig )
-				if ( !null.is( neededRef ) )
-					return harden( neededRef )
+				lead = new LeadCalc( calc: calcCall(
+					lead2.getNext(), [ source.getFromMap( key ) ] ) )
+				break
 				
-				def calc = lead2.getCalc()
-				neededRef = Refs.anyNeededRef( calc )
-				if ( !null.is( neededRef ) )
-					return harden( neededRef )
+			case LeadDefine:
+				def lead2 = (LeadDefine)lead
 				
-				neededRef = addDefinition( sig, calc )
-				if ( !null.is( neededRef ) )
-					return harden( neededRef )
+				def value = lead2.getValue()
+				if ( value in Ref )
+					return harden( value )
+				
+				def target = lead2.target
+				
+				if ( target.isResolved() )
+				{
+					if ( !value.is( target ) )
+						throw new RuntimeException(
+							"A definition conflict occurred." )
+				}
+				else
+				{
+					if ( target.isFinishable() )
+						throw new RuntimeException(
+							"A reduction type conflict occurred." )
+					
+					def works = satisfiesPromises( target.sig )
+					
+					if ( works == false )
+						throw new RuntimeException(
+								"A lead broke a promise not to"
+							 + " contribute to this sig:"
+							 + " ${target.sig}" )
+					else if ( works != true )
+						return [ lead, didAnything ]
+					
+					((Ref)target).resolveTo value
+				}
 				
 				lead = new LeadCalc(
 					calc: calcCall( lead2.getNext(), [] ) )
@@ -204,23 +237,26 @@ final class Leads
 			case LeadBagContrib:
 				def lead2 = (LeadBagContrib)lead
 				
-				def sig = lead2.getSig()
+				def target = lead2.target
 				
-				// TODO: See if this would be better as a LeadErr
-				// instead.
-				def works = satisfiesPromises( sig )
+				def works = !target.isResolved()
+				if ( works )
+				{
+					if ( !target.couldBePartialBag() )
+						throw new RuntimeException(
+							"A reduction type conflict occurred." )
+					
+					works = satisfiesPromises( target.sig )
+				}
+				
 				if ( works == false )
 					throw new RuntimeException(
 							"A lead broke a promise not to contribute"
-						 + " to this sig: ${lead2.getSig()}" )
+						 + " to this sig: ${((Ref)target).sig}" )
 				else if ( works != true )
 					return [ lead, didAnything ]
 				
-				def neededRef = Refs.anyNeededRef( sig )
-				if ( !null.is( neededRef ) )
-					return harden( neededRef )
-				
-				addBagContrib( sig, lead2.getValue() )
+				((Ref)target).addToBag lead2.getValue()
 				
 				lead = new LeadCalc(
 					calc: calcCall( lead2.getNext(), [] ) )
@@ -245,8 +281,6 @@ final class Leads
 					if ( value in Ref )
 						return harden( value )
 					
-					// TODO: See if this would be better as a LeadErr
-					// instead.
 					if ( !(value in Lead) )
 						throw new RuntimeException(
 							   "A LeadCalc's inner result wasn't a"
@@ -261,7 +295,7 @@ final class Leads
 					// calculations.
 					def ( finalInnerCalc, innerDid ) =
 						Calcs.advanceCalcRepeatedly(
-							initialInnerCalc, calcCall, getRef )
+							initialInnerCalc, calcCall )
 					
 					if ( !innerDid )
 						return [ lead, didAnything ]
