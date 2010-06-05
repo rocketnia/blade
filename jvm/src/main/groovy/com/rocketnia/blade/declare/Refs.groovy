@@ -18,9 +18,9 @@
 // along with JVM-Blade.  If not, see <http://www.gnu.org/licenses/>.
 
 
-package com.rocketnia.blade
+package com.rocketnia.blade.declare
 
-import com.rocketnia.blade.declare.*
+import com.rocketnia.blade.*
 
 
 class Ref implements Blade {

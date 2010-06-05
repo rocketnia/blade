@@ -1,4 +1,4 @@
-// Sigs.groovy
+// Sig.groovy
 //
 // Copyright 2010 Ross Angle
 //
