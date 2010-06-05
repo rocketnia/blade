@@ -393,6 +393,6 @@ println bladeCore( BladeTests.getResourceFile( "/resource.txt" ) )
 
 // For now, this should have an empty result too, since it only
 // contains one declaration and that one doesn't contribute anything.
-println bladeCore( BladeTests.getResourceFile( "/workingproject" ) )
+println bladeCore( BladeTests.getResourceFile( "/buildproject" ) )
 
 println "Finishing BladeTestSandbox"
