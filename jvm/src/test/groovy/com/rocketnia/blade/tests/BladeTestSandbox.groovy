@@ -62,10 +62,10 @@ continuation of the above paragraph.
 ''' )
 
 println BladeParser.parseProject(
-	BladeTests.getResourceFile( "/bladeproject" ) )
+	BladeTests.getResourceFile( "/parseproject" ) )
 
 println BladeParser.parseProject(
-	BladeTests.getResourceFile( "/bladeproject/something.blade" ) )
+	BladeTests.getResourceFile( "/parseproject/something.blade" ) )
 
 def bladeCore = { File projectFile ->
 	

@@ -125,14 +125,14 @@ continuation of the above paragraph.
 			collect { it in BracketView ?
 				[ it.path, it.brackets ] : it } as Set }
 		
-		assertEquals parseProj( "/bladeproject/something.blade" ),
+		assertEquals parseProj( "/parseproject/something.blade" ),
 			somethingBrackets.collect { [ "", it ] } as Set
 		
 		assertEquals parseProj(
-			"/bladeproject/subdir/somethingelse.blade" ),
+			"/parseproject/subdir/somethingelse.blade" ),
 			somethingElseBrackets.collect { [ "", it ] } as Set
 		
-		assertEquals parseProj( "/bladeproject" ),
+		assertEquals parseProj( "/parseproject" ),
 			(somethingBrackets.collect { [ "something.blade", it ] } +
 			somethingElseBrackets.collect { [
 				"subdir/somethingelse.blade", it ] }) as Set

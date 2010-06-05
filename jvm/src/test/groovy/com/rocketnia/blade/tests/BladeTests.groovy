@@ -41,16 +41,16 @@ class BladeTests extends GroovyTestCase
 	
 	void testTestResourceTraversal()
 	{
-		def bladeProjectUrl =
-			getClass().getResource( "/bladeproject" )
+		def parseProjectUrl =
+			getClass().getResource( "/parseproject" )
 		
-		assertEquals bladeProjectUrl.getProtocol(), "file"
+		assertEquals parseProjectUrl.getProtocol(), "file"
 		def filesFound = 0
-		Misc.eachNonDir( new File( bladeProjectUrl.toURI() ) )
+		Misc.eachNonDir( new File( parseProjectUrl.toURI() ) )
 			{ filesFound++ }
 		assertEquals filesFound, 4
 		
-		assertEquals getResourceFiles( "/bladeproject" ).size(), 4
+		assertEquals getResourceFiles( "/parseproject" ).size(), 4
 	}
 	
 	static List getResourceLines( String filename )
