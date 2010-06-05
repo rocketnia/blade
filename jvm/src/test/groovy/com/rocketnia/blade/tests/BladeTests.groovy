@@ -48,9 +48,9 @@ class BladeTests extends GroovyTestCase
 		def filesFound = 0
 		Misc.eachNonDir( new File( bladeProjectUrl.toURI() ) )
 			{ filesFound++ }
-		assertEquals filesFound, 3
+		assertEquals filesFound, 4
 		
-		assertEquals getResourceFiles( "/bladeproject" ).size(), 3
+		assertEquals getResourceFiles( "/bladeproject" ).size(), 4
 	}
 	
 	static List getResourceLines( String filename )

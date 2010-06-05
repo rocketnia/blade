@@ -296,8 +296,9 @@ final class BladeParser
 			return null
 		
 		Set result = []
-		for ( File file: Misc.getNonDirs( root ).
-			findAll { it.getName() =~ /\.blade$/ } )
+		for ( File file: Misc.getNonDirs( root,
+			dirNameFilter: { !it.contains( "." ) },
+			nonDirNameFilter: { it.endsWith ".blade" } ) )
 		{
 			def relativeParts = []
 			for (

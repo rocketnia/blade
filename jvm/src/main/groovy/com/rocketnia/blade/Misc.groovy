@@ -118,7 +118,8 @@ final class Misc
 	
 	static let( Closure f ) { f() }
 	
-	static boolean anyNonDir( File file, Closure body )
+	static boolean anyNonDir(
+		Map options = [:], File file, Closure body )
 	{
 		// We don't really care about the traversal order, but we're
 		// making a point to avoid JVM recursion so that we don't get
@@ -126,38 +127,50 @@ final class Misc
 		
 		def toGo = [ file ]
 		
+		def dirNameFilter = options?.get( "dirNameFilter" )
+		if ( null.is( dirNameFilter ) )
+			dirNameFilter = { true }
+		
+		def nonDirNameFilter = options?.get( "nonDirNameFilter" )
+		if ( null.is( nonDirNameFilter ) )
+			nonDirNameFilter = { true }
+		
 		while ( !toGo.isEmpty() )
 		{
 			def thisFile = (File)toGo.pop()
 			
 			if ( thisFile.isFile() )
 			{
-				if ( body( thisFile ) )
+				if ( thisFile.getName() in nonDirNameFilter
+					&& body( thisFile ) )
 					return true
 			}
-			else for ( child in thisFile.listFiles() )
-				toGo.add child
+			else if ( thisFile.getName() in dirNameFilter )
+				for ( child in thisFile.listFiles() )
+					toGo.add child
 		}
 		
 		return false
 	}
 	
-	static void eachNonDir( File file, Closure body )
+	static void eachNonDir(
+		Map options = [:], File file, Closure body )
 	{
-		anyNonDir file, {
+		anyNonDir options, file, {
 			
 			body it
 			return false
 		}
 	}
 	
-	static Set< File > getNonDirs( File directory )
+	static Set< File > getNonDirs( Map options = [:], File directory )
 	{
 		if ( null.is( directory ) || !directory.exists() )
 			return null
 		
 		def result = []
-		eachNonDir( new File( directory.toURI() ), result.&add )
+		eachNonDir(
+			options, new File( directory.toURI() ), result.&add )
 		return result as Set
 	}
 }
