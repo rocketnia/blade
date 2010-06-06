@@ -104,7 +104,7 @@ class Ref implements Blade {
 		{ null.is( value ) && null.is( partialBag ) }
 	boolean canGetFromMap() { null.is( partialBag ) }
 	
-	Ref getFromMap( Blade key )
+	private Ref getFromMap( Blade key, boolean hard )
 	{
 		key = Refs.derefSoft( key )
 		
@@ -123,7 +123,7 @@ class Ref implements Blade {
 				
 				def result = map[ key ]
 				
-				if ( null.is( result ) )
+				if ( hard && null.is( result ) )
 					throw new IllegalStateException(
 							"The getFromMap method was called with a"
 						 + " new key on an already resolved"
@@ -137,6 +137,9 @@ class Ref implements Blade {
 						"The getFromMap method was called on a"
 					 + " partial bag reference." )
 			
+			if ( !hard )
+				return map?.get( key )
+			
 			if ( null.is( map ) )
 				map = [:]
 			
@@ -146,6 +149,9 @@ class Ref implements Blade {
 			))
 		}
 	}
+	
+	Ref getFromMapHard( Blade key ) { getFromMap key, true }
+	Ref getFromMapSoft( Blade key ) { getFromMap key, false }
 	
 	boolean isFinishable() { isPartialBag() || isPartialMap() }
 	

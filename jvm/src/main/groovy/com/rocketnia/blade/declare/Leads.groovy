@@ -25,11 +25,9 @@ import com.rocketnia.blade.*
 
 abstract class Lead extends RefMap {}
 
-// A request for a reference to the value of key in the source map
-// Ref. The value isn't needed yet, so it can be filled in later using
-// mutation. The next field is a Blade function that will take the
-// answer and return a new Lead.
-//
+// A request for the source map Ref to have the given key. The value
+// isn't needed yet, so it can be filled in later using mutation. The
+// next field is a nullary Blade function that will return a new Lead.
 class LeadSoftAsk extends Lead {
 	Ref source
 	Blade getKey() { get "key" }
@@ -192,8 +190,10 @@ final class Leads
 				else if ( works != true )
 					return [ lead, didAnything ]
 				
-				lead = new LeadCalc( calc: calcCall(
-					lead2.getNext(), [ source.getFromMap( key ) ] ) )
+				source.getFromMapHard( key )
+				
+				lead = new LeadCalc(
+					calc: calcCall( lead2.getNext(), [] ) )
 				break
 				
 			case LeadDefine:

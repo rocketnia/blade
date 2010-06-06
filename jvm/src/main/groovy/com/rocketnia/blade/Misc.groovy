@@ -37,19 +37,32 @@ class BuiltIn implements Blade {
 	
 	String toString() { "BuiltIn(${value.inspect()})" }
 	
-	private static LeadSoftAsk softAsk1(
+	private static Lead softAsk1(
 		Ref source, Blade key, Closure body )
-		{ new LeadSoftAsk( source: source, key: key, next:
+	{
+		def firstTry = source.getFromMapSoft( key )
+		
+		if ( !null.is( firstTry ) )
+			return body( firstTry )
+		
+		return new LeadSoftAsk( source: source, key: key, next:
 			of { List< Blade > args ->
 				
-				if ( args.size() != 1 )
+				if ( args.size() != 0 )
 					return new CalcErr( error: BladeString.of(
-							"Expected 1 argument to a CalcSoftAsk"
+							"Expected 0 arguments to a CalcSoftAsk"
 						 + " continuation and got ${args.size()}." ) )
 				
-				return new CalcResult( value: body( args[ 0 ] ) )
+				def val = source.getFromMapSoft( key )
+				if ( null.is( val ) )
+					return new CalcErr( error: BladeString.of(
+							"A soft ask was continued before it was"
+						 + " fulfilled." ) )
+				
+				return new CalcResult( value: body( val ) )
 			}
-		) }
+		)
+	}
 	
 	static Lead softAsk(
 		Ref refBase, List< Blade > derivs, Closure body )
