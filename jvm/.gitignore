@@ -20,9 +20,9 @@
 
 # Ignore all build artifacts, including Eclipse project files (which
 # are built by the gradle "eclipse" task).
-build/
-.classpath
-.project
+/build/
+/.classpath
+/.project
 
 # Ignore the extraneous files Gradle makes.
-.gradle/
+/.gradle/
