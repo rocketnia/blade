@@ -90,7 +90,7 @@ def bladeCore = { File projectFile ->
 	Closure calcCall = { Blade fnRef, List< Blade > args ->
 		
 		// TODO: Support more type-specific behavior.
-		// TODO: support extending this from within Blade, all the
+		// TODO: Support extending this from within Blade, all the
 		// while maintaining the semantics that the fn here should act
 		// as a pure function that returns only Calcs.
 		
@@ -116,15 +116,6 @@ def bladeCore = { File projectFile ->
 	return TopLevel.bladeTopLevel( sigBase, bladeTruthy, calcCall ) {
 		
 		refBase = it
-		
-		Ref refExtBladeBlade
-		
-		Closure refPathFromList = { List< String > derivs -> derivs.
-			inject refBase,
-				{ Ref p, d -> p.getFromMap BladeString.of( d ) } }
-		
-		Closure refPath =
-			{ String... derivs -> refPathFromList( derivs as List ) }
 		
 		Closure mySoftAsk = { List< String > derivs, Closure body ->
 			
