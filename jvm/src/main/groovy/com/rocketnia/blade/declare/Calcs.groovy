@@ -25,9 +25,9 @@ import com.rocketnia.blade.*
 
 abstract class Calc extends RefMap {}
 
-// A demand for the given ref to be resolved. The next field is a
-// Blade function that will take the resolved value of the ref and
-// return a new Calc.
+// A demand for the given constant ReflectedRef to be resolved. The
+// next field is a Blade function that will take the resolved value of
+// the ref and return a new Calc.
 class CalcHardAsk extends Calc {
 	Blade getRef() { get "ref" }
 	Blade setRef( Blade val ) { set "ref", val }
@@ -71,7 +71,10 @@ final class Calcs
 		def originalCalc = calc
 		
 		def harden = { [
-			new CalcHardAsk( ref: it, next: BuiltIn.of { calc } ),
+			new CalcHardAsk(
+				ref: new ReflectedRef( ref: it ),
+				next: BuiltIn.of { calc }
+			),
 			true
 		] }
 		
@@ -107,13 +110,23 @@ final class Calcs
 				case CalcHardAsk:
 					def calc2 = (CalcHardAsk)calc
 					
-					def ref = calc2.getRef()
+					def reflectedRef = calc2.getRef()
+					if ( reflectedRef in Ref )
+						return harden( reflectedRef )
 					
-					if ( !Refs.isSetIndirect( ref ) )
+					if ( !(reflectedRef in ReflectedRef) )
+						throw new RuntimeException(
+								"The ref of a CalcHardAsk wasn't a"
+							 + " ReflectedRef." )
+					
+					def value =
+						((ReflectedRef)reflectedRef).ref.derefSoft()
+					
+					if ( value in Ref )
 						return [ calc, didAnything ]
 					
 					calc = new CalcCalc(
-						calc: calcCall( calc2.getNext(), [] ) )
+						calc: calcCall( calc2.getNext(), [ value ] ) )
 					
 					break
 					

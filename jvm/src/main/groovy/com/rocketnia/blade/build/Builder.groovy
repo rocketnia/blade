@@ -93,7 +93,7 @@ final class Builder
 			Closure myDefine = { List< String > derivs, Blade value ->
 				
 				initialLeads.add mySoftAsk( derivs ) { new LeadDefine(
-					target: it,
+					target: new ReflectedRef( ref: it ),
 					value: value,
 					next: BuiltIn.
 						of { new CalcResult( value: new LeadEnd() ) }

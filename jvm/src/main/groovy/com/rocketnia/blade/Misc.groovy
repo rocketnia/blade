@@ -45,21 +45,30 @@ class BuiltIn implements Blade {
 		if ( !null.is( firstTry ) )
 			return body( firstTry )
 		
-		return new LeadSoftAsk( source: source, key: key, next:
-			of { List< Blade > args ->
+		return new LeadSoftAsk(
+			source: new ReflectedRef( ref: source ),
+			key: key,
+			next: of { List< Blade > args ->
 				
-				if ( args.size() != 0 )
+				if ( args.size() != 1 )
 					return new CalcErr( error: BladeString.of(
-							"Expected 0 arguments to a CalcSoftAsk"
+							"Expected 1 argument to a CalcSoftAsk"
 						 + " continuation and got ${args.size()}." ) )
 				
-				def val = source.getFromMapSoft( key )
-				if ( null.is( val ) )
+				def arg = args[ 0 ]
+				
+				if ( !(arg in ReflectedRef) )
+					return new CalcErr( error: BladeString.of(
+							"A non-ReflectedRef was passed to a"
+						 + " CalcSoftAsk continuation." ) )
+				
+				if ( null.is( source.getFromMapSoft( key ) ) )
 					return new CalcErr( error: BladeString.of(
 							"A soft ask was continued before it was"
 						 + " fulfilled." ) )
 				
-				return new CalcResult( value: body( val ) )
+				return new CalcResult(
+					value: body( ((ReflectedRef)arg).ref ) )
 			}
 		)
 	}
@@ -87,21 +96,22 @@ class BuiltIn implements Blade {
 		
 		def derefedRef = (Ref)derefed
 		
-		return new CalcHardAsk( ref: derefed, next:
-			of { List< Blade > args ->
+		return new CalcHardAsk(
+			ref: new ReflectedRef( ref: derefed ),
+			next: of { List< Blade > args ->
 				
-				if ( args.size() != 0 )
+				if ( args.size() != 1 )
 					return new CalcErr( error: BladeString.of(
-							"Expected 0 arguments to a CalcHardAsk"
+							"Expected 1 argument to a CalcHardAsk"
 						 + " continuation and got ${args.size()}." ) )
 				
-				def derefedAgain = derefedRef.derefSoft()
-				if ( derefedAgain in Ref )
+				def arg = Refs.derefSoft( args[ 0 ] )
+				if ( arg in Ref )
 					return new CalcErr( error: BladeString.of(
-							"A hard ask was continued before it was"
-						 + " fulfilled." ) )
+							"A hard ask was continued with an"
+						 + " unresolved Ref." ) )
 				
-				return new CalcResult( value: body( derefedAgain ) )
+				return new CalcResult( value: body( arg ) )
 			}
 		)
 	}

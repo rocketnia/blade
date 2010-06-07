@@ -25,32 +25,36 @@ import com.rocketnia.blade.*
 
 abstract class Lead extends RefMap {}
 
-// A request for the source map Ref to have the given key. The value
-// isn't needed yet, so it can be filled in later using mutation. The
-// next field is a nullary Blade function that will return a new Lead.
+// A request for the source map ReflectedRef to have the given key.
+// The value isn't needed yet, so it can be filled in later using
+// mutation. The next field is a Blade function that will accept the
+// resulting ReflectedRef and return a new Lead.
 class LeadSoftAsk extends Lead {
-	Ref source
+	Blade getSource() { get "source" }
+	Blade setSource( Blade val ) { set "source", val }
 	Blade getKey() { get "key" }
 	Blade setKey( Blade val ) { set "key", val }
 	Blade getNext() { get "next" }
 	Blade setNext( Blade val ) { set "next", val }
 }
 
-// A definition of a target Ref as value. The next field is a nullary
-// Blade function that will return a new Lead.
+// A definition of a target constant ReflectedRef as value. The next
+// field is a nullary Blade function that will return a new Lead.
 class LeadDefine extends Lead {
-	Ref target
+	Blade getTarget() { get "target" }
+	Blade setTarget( Blade val ) { set "target", val }
 	Blade getValue() { get "value" }
 	Blade setValue( Blade val ) { set "value", val }
 	Blade getNext() { get "next" }
 	Blade setNext( Blade val ) { set "next", val }
 }
 
-// A contribution of value to a target Ref multiset. The next field is
-// a nullary Blade function that will return a new Lead. Note that
-// value can be a soft reference.
+// A contribution of value to a target bag ReflectedRef. The next
+// field is a nullary Blade function that will return a new Lead. Note
+// that value can be an unresolved reference.
 class LeadBagContrib extends Lead {
-	Ref target
+	Blade getTarget() { get "target" }
+	Blade setTarget( Blade val ) { set "target", val }
 	Blade getValue() { get "value" }
 	Blade setValue( Blade val ) { set "value", val }
 	Blade getNext() { get "next" }
@@ -124,8 +128,10 @@ final class Leads
 		Closure addPromise, Closure getPromises, Closure bladeTruthy )
 	{
 		def harden = { [
-			new LeadCalc( calc: new CalcHardAsk(
-				ref: it, next: BuiltIn.of { lead } ) ),
+			new CalcHardAsk(
+				ref: new ReflectedRef( ref: it ),
+				next: BuiltIn.of { lead }
+			),
 			true
 		] }
 		
@@ -175,9 +181,18 @@ final class Leads
 				if ( key in Ref )
 					return harden( key )
 				
-				def source = lead2.source
+				def reflectedSource = lead2.getSource()
+				if ( reflectedSource in Ref )
+					return harden( reflectedSource )
 				
-				if ( !source.canGetFromMap() )
+				if ( !(reflectedSource in ReflectedRef) )
+					throw new RuntimeException(
+							"The source of a LeadSoftAsk wasn't a"
+						 + " ReflectedRef." )
+				
+				def source = ((ReflectedRef)reflectedSource).ref
+				
+				if ( !source.couldBeMap() )
 					throw new RuntimeException(
 						"A reduction type conflict occurred." )
 				
@@ -190,10 +205,15 @@ final class Leads
 				else if ( works != true )
 					return [ lead, didAnything ]
 				
-				source.getFromMapHard( key )
+				if ( source.isntItMap() )
+					throw new RuntimeException(
+						"A reduction type conflict occurred." )
 				
-				lead = new LeadCalc(
-					calc: calcCall( lead2.getNext(), [] ) )
+				lead = new LeadCalc( calc: calcCall(
+					lead2.getNext(),
+					[ new ReflectedRef( ref:
+						source.getFromMapHard( key ) ) ]
+				) )
 				break
 				
 			case LeadDefine:
@@ -203,9 +223,26 @@ final class Leads
 				if ( value in Ref )
 					return harden( value )
 				
-				def target = lead2.target
+				def reflectedTarget = lead2.getTarget()
+				if ( reflectedTarget in Ref )
+					return harden( reflectedTarget )
 				
-				if ( target.isResolved() )
+				if ( !(reflectedTarget in ReflectedRef) )
+					throw new RuntimeException(
+							"The target of a LeadDefine wasn't a"
+						 + " ReflectedRef." )
+				
+				def target = ((ReflectedRef)reflectedTarget).ref
+				
+				// We're checking this first for threading reasons.
+				// TODO: Someday, actually use threading.
+				def targetIsResolved = target.isResolved()
+				
+				if ( !target.couldBeConstant() )
+					throw new RuntimeException(
+						"A reduction type conflict occurred." )
+				
+				if ( targetIsResolved )
 				{
 					if ( !value.is( target ) )
 						throw new RuntimeException(
@@ -213,12 +250,7 @@ final class Leads
 				}
 				else
 				{
-					if ( target.isFinishable() )
-						throw new RuntimeException(
-							"A reduction type conflict occurred." )
-					
 					def works = satisfiesPromises( target.sig )
-					
 					if ( works == false )
 						throw new RuntimeException(
 								"A lead broke a promise not to"
@@ -226,6 +258,10 @@ final class Leads
 							 + " ${target.sig}" )
 					else if ( works != true )
 						return [ lead, didAnything ]
+					
+					if ( target.isntItConstant() )
+						throw new RuntimeException(
+							"A reduction type conflict occurred." )
 					
 					target.resolveTo value
 					target.becomeReadyToCollapse()
@@ -238,12 +274,21 @@ final class Leads
 			case LeadBagContrib:
 				def lead2 = (LeadBagContrib)lead
 				
-				def target = lead2.target
+				def reflectedTarget = lead2.getTarget()
+				if ( reflectedTarget in Ref )
+					return harden( reflectedTarget )
+				
+				if ( !(reflectedTarget in ReflectedRef) )
+					throw new RuntimeException(
+							"The target of a LeadBagContrib wasn't a"
+						 + " ReflectedRef." )
+				
+				def target = ((ReflectedRef)reflectedTarget).ref
 				
 				def works = !target.isResolved()
 				if ( works )
 				{
-					if ( !target.couldBePartialBag() )
+					if ( !target.couldBeBag() )
 						throw new RuntimeException(
 							"A reduction type conflict occurred." )
 					
@@ -256,6 +301,10 @@ final class Leads
 						 + " to this sig: ${target.sig}" )
 				else if ( works != true )
 					return [ lead, didAnything ]
+				
+				if ( target.isntItBag() )
+					throw new RuntimeException(
+						"A reduction type conflict occurred." )
 				
 				target.addToBag lead2.getValue()
 				

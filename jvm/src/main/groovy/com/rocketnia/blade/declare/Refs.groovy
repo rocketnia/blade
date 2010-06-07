@@ -23,7 +23,10 @@ package com.rocketnia.blade.declare
 import com.rocketnia.blade.*
 
 
+enum ReductionType { Constant, Bag, Map }
+
 class Ref implements Blade {
+	private ReductionType type
 	private List< Blade > partialBag
 	private Map< Blade, Ref > map
 	private Blade value
@@ -46,6 +49,25 @@ class Ref implements Blade {
 		readyToCollapse = true
 		derefSoft()
 	}
+	
+	synchronized boolean isntIt( ReductionType type )
+	{
+		if ( type == null )
+			throw new NullPointerException()
+		
+		return type != (this.type = this.type ?: type)
+	}
+	
+	boolean isntItConstant() { isntIt ReductionType.Constant }
+	boolean isntItBag() { isntIt ReductionType.Bag }
+	boolean isntItMap() { isntIt ReductionType.Map }
+	
+	boolean couldBe( ReductionType type )
+		{ this.type == null || this.type == type }
+	
+	boolean couldBeConstant() { couldBe ReductionType.Constant }
+	boolean couldBeBag() { couldBe ReductionType.Bag }
+	boolean couldBeMap() { couldBe ReductionType.Map }
 	
 	String toString()
 		{ isResolved() ? "Ref>$value" : "Ref(unresolved)" }
@@ -79,10 +101,10 @@ class Ref implements Blade {
 						"The resolveTo method was called on an"
 					 + " already resolved reference." )
 			
-			if ( isFinishable() )
+			if ( type != ReductionType.Constant )
 				throw new IllegalStateException(
 						"The resolveTo method was called on a"
-					 + " finishable reference." )
+					 + " non-constant reference." )
 			
 			this.value = value
 		}
@@ -99,9 +121,9 @@ class Ref implements Blade {
 					"The addToBag method was called on an already"
 				 + " resolved reference." )
 		
-		if ( !null.is( map ) )
+		if ( type != ReductionType.Bag )
 			throw new IllegalStateException(
-					"The addToBag method was called on a map"
+					"The addToBag method was called on a non-bag"
 				 + " reference." )
 		
 		if ( null.is( partialBag ) )
@@ -123,18 +145,21 @@ class Ref implements Blade {
 			throw new IllegalArgumentException(
 				"The key must be a non-Ref Blade value." )
 		
+		if ( !hard )
+			return map?.get( key )
+		
 		synchronized ( this )
 		{
+			if ( type != ReductionType.Map )
+				throw new IllegalStateException(
+						"The getFromMap method was called on a"
+					 + " non-map reference." )
+			
 			if ( !null.is( value ) )
 			{
-				if ( null.is( map ) )
-					throw new IllegalStateException(
-							"The getFromMap method was called on a"
-						 + " resolved, non-map reference." )
-				
 				def result = map[ key ]
 				
-				if ( hard && null.is( result ) )
+				if ( null.is( result ) )
 					throw new IllegalStateException(
 							"The getFromMap method was called with a"
 						 + " new key on an already resolved"
@@ -142,14 +167,6 @@ class Ref implements Blade {
 				
 				return result
 			}
-			
-			if ( !null.is( partialBag ) )
-				throw new IllegalStateException(
-						"The getFromMap method was called on a"
-					 + " partial bag reference." )
-			
-			if ( !hard )
-				return map?.get( key )
 			
 			if ( null.is( map ) )
 				map = [:]
@@ -184,6 +201,14 @@ class Ref implements Blade {
 				 + " non-finishable reference." )
 	}
 }
+
+// Although a Ref is an instance of the Blade interface, it isn't
+// first-class. It's a Blade so it can be stored in places a Blade is
+// stored, but it isn't a value in the language. On the contrary, a
+// ReflectedRef is a first-class Blade values with the explicit intent
+// to be used for manipulating Refs. In particular, it should be used
+// when constructing Leads and Calcs from within Blade.
+class ReflectedRef implements Blade { Ref ref }
 
 final class Refs
 {
@@ -255,7 +280,8 @@ class BladeMultiset implements Blade {
 class BladeNamespace implements Blade {
 	Map< Blade, Blade > map
 	
-	String toString() { "BladeNamespace$map" }
+	String toString()
+		{ map.each { k, v -> getAt k }; return "BladeNamespace$map" }
 	
 	public Blade getAt( Blade key )
 	{
