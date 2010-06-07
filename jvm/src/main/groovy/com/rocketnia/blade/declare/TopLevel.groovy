@@ -189,6 +189,7 @@ final class TopLevel
 					continue
 				
 				ref.finish()
+				ref.becomeReadyToCollapse()
 				managedRefs.remove ref
 				didAnything = true
 			}

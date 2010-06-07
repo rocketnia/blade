@@ -26,7 +26,8 @@ import com.rocketnia.blade.*
 abstract class Calc extends RefMap {}
 
 // A demand for the given ref to be resolved. The next field is a
-// nullary Blade function that will return a new Calc.
+// Blade function that will take the resolved value of the ref and
+// return a new Calc.
 class CalcHardAsk extends Calc {
 	Blade getRef() { get "ref" }
 	Blade setRef( Blade val ) { set "ref", val }

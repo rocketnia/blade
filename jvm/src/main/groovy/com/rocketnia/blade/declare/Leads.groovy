@@ -227,7 +227,8 @@ final class Leads
 					else if ( works != true )
 						return [ lead, didAnything ]
 					
-					((Ref)target).resolveTo value
+					target.resolveTo value
+					target.becomeReadyToCollapse()
 				}
 				
 				lead = new LeadCalc(
@@ -252,11 +253,11 @@ final class Leads
 				if ( works == false )
 					throw new RuntimeException(
 							"A lead broke a promise not to contribute"
-						 + " to this sig: ${((Ref)target).sig}" )
+						 + " to this sig: ${target.sig}" )
 				else if ( works != true )
 					return [ lead, didAnything ]
 				
-				((Ref)target).addToBag lead2.getValue()
+				target.addToBag lead2.getValue()
 				
 				lead = new LeadCalc(
 					calc: calcCall( lead2.getNext(), [] ) )

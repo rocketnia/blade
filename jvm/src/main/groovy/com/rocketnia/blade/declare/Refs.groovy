@@ -29,6 +29,7 @@ class Ref implements Blade {
 	private Blade value
 	final Blade sig
 	private final Closure registrar
+	private boolean readyToCollapse = false
 	
 	public Ref( Blade sig, Closure registrar )
 	{
@@ -38,6 +39,13 @@ class Ref implements Blade {
 	}
 	
 	boolean isResolved() { !null.is( value ) }
+	boolean isReadyToCollapse() { readyToCollapse }
+	
+	void becomeReadyToCollapse()
+	{
+		readyToCollapse = true
+		derefSoft()
+	}
 	
 	String toString()
 		{ isResolved() ? "Ref>$value" : "Ref(unresolved)" }
@@ -47,17 +55,20 @@ class Ref implements Blade {
 		if ( null.is( value ) )
 			return this
 		
-		if ( !(value in Ref) )
-			return value
+		def result = Refs.derefSoft( value )
 		
-		return value = ((Ref)value).derefSoft()
+		if ( readyToCollapse )
+		{
+			value = result
+			map = null
+		}
+		
+		return result
 	}
 	
 	void resolveTo( Blade value )
 	{
-		value = Refs.derefSoft( value )
-		
-		if ( is( value ) )
+		if ( is( Refs.derefSoft( value ) ) )
 			throw new IllegalArgumentException(
 				"A reference can't be set to itself." )
 		
@@ -165,6 +176,7 @@ class Ref implements Blade {
 		else if ( isPartialMap() )
 		{
 			value = new BladeNamespace( map: map )
+			derefSoft()
 		}
 		else
 			throw new IllegalStateException(
@@ -215,12 +227,16 @@ class RefMap implements Blade
 	
 	Blade get( String name )
 	{
-		Blade ref = refs[ name ]
+		Blade result = refs[ name ]
 		
-		if ( !(ref in Ref) )
-			return ref
+		if ( result in Ref )
+		{
+			def ref = (Ref)result
+			if ( ref.isReadyToCollapse() )
+				result = refs[ name ] = ref.derefSoft()
+		}
 		
-		return refs[ name ] = ((Ref)ref).derefSoft()
+		return result
 	}
 	
 	Blade getRaw( String name ) { refs[ name ] }
@@ -247,11 +263,15 @@ class BladeNamespace implements Blade {
 			throw new IllegalArgumentException(
 				"The key must be a non-Ref Blade value." )
 		
-		def ref = map[ key ]
+		def result = map[ key ]
 		
-		if ( !(ref in Ref) )
-			return ref
+		if ( result in Ref )
+		{
+			def ref = (Ref)result
+			if ( ref.isReadyToCollapse() )
+				result = map[ key ] = ref.derefSoft()
+		}
 		
-		return map[ key ] = ((Ref)ref).derefSoft()
+		return result
 	}
 }
