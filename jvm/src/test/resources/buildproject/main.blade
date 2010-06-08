@@ -1,6 +1,6 @@
 This is an actual, working Blade program.
 
 [blade impl jvm-blade groovy-eval
-	import com.rocketnia.blade.declare.*
-	println "yes, this has been rebuilt"
-	new LeadEnd() ]
+	import com.rocketnia.blade.*
+	
+	define( [ "sample-var" ], BladeString.of( "sample-val" ) ) ]

@@ -73,8 +73,8 @@ println BladeParser.parseProject(
 // will still contain the things that are automatically contributed.
 println Builder.build( BladeTests.getResourceFile( "/resource.txt" ) )
 
-// For now, this should have an empty result too, since it only
-// contains one declaration and that one doesn't contribute anything.
+// This should have slightly more information in its result, since the
+// project isn't empty.
 println Builder.build( BladeTests.getResourceFile( "/buildproject" ) )
 
 println "Finishing BladeTestSandbox"

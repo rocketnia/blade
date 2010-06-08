@@ -90,14 +90,20 @@ final class Builder
 			
 			Set< Lead > initialLeads = []
 			
-			Closure myDefine = { List< String > derivs, Blade value ->
+			Closure myLeadDefine =
+				{ List< String > derivs, Blade value ->
 				
-				initialLeads.add mySoftAsk( derivs ) { new LeadDefine(
+				return mySoftAsk( derivs ) { new LeadDefine(
 					target: new ReflectedRef( ref: it ),
 					value: value,
 					next: BuiltIn.
 						of { new CalcResult( value: new LeadEnd() ) }
 				) }
+			}
+			
+			Closure myDefine = { List< String > derivs, Blade value ->
+				
+				initialLeads.add myLeadDefine( derivs, value )
 			}
 			
 			Blade interpretDeclaration =
@@ -349,8 +355,14 @@ final class Builder
 								to( brackets.last().stop )
 						).join( '\n' )
 						
-						return new CalcResult(
-							value: Eval.me( stringContents ) )
+						return new CalcResult( value:
+							new GroovyShell( new Binding( [
+								bladeTruthy: bladeTruthy,
+								calcCall: calcCall,
+								refBase: refBase,
+								softAsk: mySoftAsk,
+								define: myLeadDefine
+							] ) ).evaluate( stringContents ) )
 					}
 				}
 			)
