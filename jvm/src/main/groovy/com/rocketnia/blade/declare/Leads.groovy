@@ -63,8 +63,9 @@ class LeadBagContrib extends Lead {
 
 // A promise not to contribute to any Ref with a sig that doesn't
 // satisfy the filter, even by just a LeadSoftAsk for a new child of
-// that Ref. The next field is a nullary Blade function that will
-// return a new Lead.
+// that Ref. The filter field is a Blade function that will accept a
+// sig and return a BladeBoolean. The next field is a nullary Blade
+// function that will return a new Lead.
 class LeadPromise extends Lead {
 	Blade getFilter() { get "filter" }
 	Blade setFilter( Blade val ) { set "filter", val }
@@ -114,10 +115,6 @@ final class Leads
 	// broken and and at least one of them requires an unsatisfied
 	// hard ask.
 	//
-	// The bladeTruthy parameter should be a closure that accepts a
-	// Blade value and returns either true, false, or a hard-asked-for
-	// ref.
-	//
 	// TODO: See if the errors here would be better as LeadErr values
 	// instead.
 	//
@@ -125,7 +122,7 @@ final class Leads
 	// avoided.
 	//
 	static List advanceLeadRepeatedly( Lead lead, Closure calcCall,
-		Closure addPromise, Closure getPromises, Closure bladeTruthy )
+		Closure addPromise, Closure getPromises )
 	{
 		def harden = { [
 			new CalcHardAsk(
@@ -143,16 +140,20 @@ final class Leads
 					Calcs.advanceCalcRepeatedly(
 						calcCall( filter, [ sig ] ), calcCall )
 				
-				if ( advanced in CalcHardAsk )
+				if ( !(advanced in CalcResult) )
 					return null
 				
-				def truth = bladeTruthy(
-					((CalcResult)advanced).getValue() )
+				def truth = ((CalcResult)advanced).getValue()
 				
-				if ( truth == false )
-					return false
-				else if ( truth != true )
+				if ( truth in Ref )
 					return null
+				
+				if ( !(truth in BladeBoolean) )
+					throw new RuntimeException(
+							"A promise filter returned a"
+						 + " non-BladeBoolean." )
+				
+				return ((BladeBoolean)truth).value
 			}
 			
 			return true

@@ -135,6 +135,15 @@ class BladeString implements Blade, Internable {
 	String toJava() { value }
 }
 
+final class BladeBoolean implements Blade {
+	final boolean value
+	
+	private BladeBoolean( boolean value ) { this.value = value }
+	
+	static final TRUE = new BladeBoolean( true )
+	static final FALSE = new BladeBoolean( false )
+}
+
 final class Misc
 {
 	private Misc() {}

@@ -43,10 +43,6 @@ final class TopLevel
 	// besides identity; it can be given as "new Blade() {}" if
 	// there's no more appropriate alternative.
 	//
-	// The bladeTruthy parameter should be a closure that takes a
-	// Blade value and returns either true, false, or a hard-asked-for
-	// Ref.
-	//
 	// The calcCall parameter should be a closure that takes a Blade
 	// value and a Groovy List of Blade values and returns a Calc
 	// representing the result of a Blade function application. Any or
@@ -55,10 +51,10 @@ final class TopLevel
 	//
 	// The refBaseToInitial parameter should be a closure that takes a
 	// Ref corresponding to sigBase, records it somewhere where
-	// bladeTruthy and calcCall can find it (if they need to), and
-	// returns a set of initial Leads. It can also be used in order to
-	// set up further Refs for bladeTruthy, calcCall, the initial
-	// Leads, and other code in the caller to rely on.
+	// calcCall can find it (if it needs to), and returns a set of
+	// initial Leads. It can also be used in order to set up further
+	// Refs for calcCall, the initial Leads, and other code in the
+	// caller to rely on.
 	//
 	// TODO: See what special abilities a bag Ref can have. For
 	// instance, a Calc could ask "does any element of the multiset
@@ -87,8 +83,8 @@ final class TopLevel
 	// developer to be able to see errors as they're found and to
 	// abort manually.
 	//
-	static Blade bladeTopLevel( Blade sigBase, Closure bladeTruthy,
-		Closure calcCall, Closure refBaseToInitial )
+	static Blade bladeTopLevel(
+		Blade sigBase, Closure calcCall, Closure refBaseToInitial )
 	{
 		Set< Ref > managedRefs = [] as Set
 		
@@ -101,11 +97,22 @@ final class TopLevel
 		
 		def promiseRejects = { filter, sig ->
 			
-			def ( Calc result, did ) = Calcs.advanceCalcRepeatedly(
+			def ( Calc advanced, did ) = Calcs.advanceCalcRepeatedly(
 				calcCall( filter, [ sig ] ), calcCall )
 			
-			return result in CalcResult &&
-				bladeTruthy( ((CalcResult)result).value ) == false
+			if ( !(advanced in CalcResult) )
+				return false
+			
+			def truth = ((CalcResult)advanced).getValue()
+			
+			if ( truth in Ref )
+				return false
+			
+			if ( !(truth in BladeBoolean) )
+				throw new RuntimeException(
+					"A promise filter returned a non-BladeBoolean." )
+			
+			return !((BladeBoolean)truth).value
 		}
 		
 		def advanceLead = { leadInfo ->
@@ -116,8 +123,7 @@ final class TopLevel
 					calcCall,
 					{ leadInfo.promises =
 						[ it ] + leadInfo.promises },
-					{ -> leadInfo.promises },
-					bladeTruthy
+					{ -> leadInfo.promises }
 				)
 			
 			leadInfo.lead = newLead

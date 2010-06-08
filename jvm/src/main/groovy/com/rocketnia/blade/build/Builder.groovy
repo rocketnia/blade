@@ -33,18 +33,6 @@ final class Builder
 	{
 		Set parsedProject = BladeParser.parseProject( root )
 		
-		Closure bladeTruthy = { Blade blade ->
-			
-			// TODO: Support more type-specific behavior.
-			// TODO: Support extending this from within Blade.
-			
-			if ( blade in BuiltIn
-				&& ((BuiltIn)blade).getValue() == false )
-				return false
-			
-			return true
-		}
-		
 		Blade sigBase = [ toString: { "sigBase" } ] as Blade
 		
 		Ref refBase
@@ -75,8 +63,7 @@ final class Builder
 			}
 		}
 		
-		return TopLevel.bladeTopLevel(
-			sigBase, bladeTruthy, calcCall ) {
+		return TopLevel.bladeTopLevel( sigBase, calcCall ) {
 			
 			refBase = it
 			
@@ -357,7 +344,6 @@ final class Builder
 						
 						return new CalcResult( value:
 							new GroovyShell( new Binding( [
-								bladeTruthy: bladeTruthy,
 								calcCall: calcCall,
 								refBase: refBase,
 								softAsk: mySoftAsk,
