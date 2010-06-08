@@ -92,8 +92,7 @@ final class Documents
 		def lastResultLine =
 			contents( document[ stopLine ], 0, stop.lineLocation )
 		
-		int beforeStopLine = stopLine - 1
-		for ( int i = startLine + 1; i < beforeStopLine; i++ )
+		for ( int i = startLine + 1; i < stopLine; i++ )
 			result.add document[ i ]
 		
 		result.add lastResultLine

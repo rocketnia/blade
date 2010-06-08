@@ -137,13 +137,13 @@ final class Builder
 							headWordMatch[ 0 ]
 						
 						def newlineMatch =
-							headSpace =~ /^.+\n([^\n]+)$/
+							headSpace =~ /^.+\n([^\n]*)$/
 						
 						def line = firstSelection.start.lineNumber
 						def linePos
 						if ( newlineMatch )
 						{
-							line += (headSpace =~ /\n/).size()
+							line += (headSpace =~ /\n/).getCount()
 							linePos = LineLocation.
 								of( newlineMatch[ 0 ][ 1 ] )
 						}
