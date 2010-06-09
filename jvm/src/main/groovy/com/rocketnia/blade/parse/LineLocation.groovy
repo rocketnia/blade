@@ -608,7 +608,10 @@ class LineLocation
 		def start = [] + counts
 		start[ -1 ] += otherCounts[ skipOver - 1 ]
 		return new LineLocation(
-			start + otherCounts.subList( skipOver ), newSize )
+			start + otherCounts.subList(
+				skipOver, otherCounts.size() ),
+			newSize
+		)
 	}
 	
 	LineLocation plus( int spaces )
@@ -628,6 +631,8 @@ class LineLocation
 		newCounts[ -1 ] += spaces
 		return new LineLocation( newCounts, newSize )
 	}
+	
+	LineLocation plus( String between ) { plus of( between ) }
 	
 	LineLocation multiply( int occurrences )
 	{

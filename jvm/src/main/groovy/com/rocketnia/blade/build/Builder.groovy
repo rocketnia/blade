@@ -113,56 +113,27 @@ final class Builder
 						
 						def view = (BracketView)declaration
 						
+						def doc = view.doc
 						def brackets = view.brackets
 						
-						DocumentSelection firstSelection =
-							brackets.head()
+						def ltrimmed =
+							BracketUtils.ltrim( doc, brackets )
 						
-						List firstLines = Documents.
-							contents( view.doc, firstSelection )
+						def ( List before, middle, List after ) =
+							BracketUtils.
+								splitAtFirst( doc, ltrimmed, ~/\s/ )
 						
-						if ( firstLines.isEmpty() )
+						if ( before.size() != 1 || null.is( after ) )
 							return new CalcResult(
 								value: new LeadEnd() )
 						
-						String firstPart = firstLines.join( '\n' )
-						
-						def headWordMatch = firstPart =~ /^\s*(\S+)\s/
-						
-						if ( !headWordMatch )
-							return new CalcResult(
-								value: new LeadEnd() )
-						
-						def ( String headSpace, String headWord ) =
-							headWordMatch[ 0 ]
-						
-						def newlineMatch =
-							headSpace =~ /^.+\n([^\n]*)$/
-						
-						def line = firstSelection.start.lineNumber
-						def linePos
-						if ( newlineMatch )
-						{
-							line += (headSpace =~ /\n/).getCount()
-							linePos = LineLocation.
-								of( newlineMatch[ 0 ][ 1 ] )
-						}
-						else
-						{
-							linePos = LineLocation.of( headSpace )
-						}
-						
-						def newFirstSelection = DocumentSelection.
-							from( line, linePos ).
-							to( firstSelection.stop )
-						
-						def newBrackets =
-							[ newFirstSelection ] + brackets.tail()
+						def headWord = Documents.contents(
+							doc, before[ 0 ] )[ 0 ]
 						
 						def newView = new BracketView(
 							path: view.path,
-							doc: view.doc,
-							brackets: newBrackets
+							doc: doc,
+							brackets: after
 						)
 						
 						return new CalcResult( value: mySoftAsk(

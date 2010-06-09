@@ -140,7 +140,13 @@ class DocumentSelection
 		DocumentSelection to( String lineLocation )
 			{ to from.lineNumber, lineLocation }
 		
+		DocumentSelection plus( LineLocation between )
+			{ to from.lineNumber, from.lineLocation + between }
+		
 		DocumentSelection plus( int spaces )
 			{ to from.lineNumber, from.lineLocation + spaces }
+		
+		DocumentSelection plus( String between )
+			{ to from.lineNumber, from.lineLocation + between }
 	}
 }
