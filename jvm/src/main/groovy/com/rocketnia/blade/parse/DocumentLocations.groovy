@@ -71,6 +71,24 @@ class DocumentLocation
 	
 	boolean lte( DocumentLocation other )
 		{ lenientCompare( other ) in [ -1, 0 ] }
+	
+	DocumentLocation plus( LineLocation between )
+		{ new DocumentLocation( lineNumber, lineLocation + between ) }
+	
+	private static final newlineSplitterPattern =
+		~/^(.*[\r\n])([^\r\n]*+)$/
+	private static final newlinePattern = ~/\n|\r\n?/
+	DocumentLocation plus( String between )
+	{
+		def newlineMatch = between =~ newlineSplitterPattern
+		if ( !newlineMatch )
+			return this + LineLocation.of( between )
+		
+		def ( whole, before, after ) = newlineMatch[ 0 ]
+		def newlines = (before =~ newlinePattern).getCount()
+		return new DocumentLocation(
+			lineNumber + newlines, LineLocation.of( after ) )
+	}
 }
 
 class DocumentSelection
@@ -104,6 +122,10 @@ class DocumentSelection
 			c.isAssignableFrom( oc ) && o.equals( this ) }) }
 	
 	String toString() { "$start-$stop" }
+	
+	boolean isEmpty() { start == stop }
+	
+	int linesSpanned() { stop.lineNumber - start.lineNumber + 1 }
 	
 	static DslFrom from( DocumentLocation from )
 		{ new DslFrom( from: from ) }

@@ -186,43 +186,11 @@ final class Builder
 						def view = (BracketView)declaration
 						def doc = view.doc
 						
-						def header = []
-						def body = []
+						def ( List header, middle, List body ) =
+							BracketUtils.splitAtFirst(
+								doc, view.brackets, '\n' )
 						
-						def inBody = false
-						
-						for ( elem in view.brackets )
-						{
-							if ( inBody )
-								body.add elem
-							else if ( elem in List )
-								header.add elem
-							else
-							{
-								def selection =
-									(DocumentSelection)elem
-								
-								def start = selection.start
-								def stop = selection.stop
-								def startLine = start.lineNumber
-								def stopLine = stop.lineNumber
-								
-								if ( startLine == stopLine )
-									header.add elem
-								else
-								{
-									inBody = true
-									header.add DocumentSelection.
-										from( start ).
-										to( doc[ startLine ] )
-									body.add DocumentSelection.
-										from( startLine + 1 ).
-										to( stop )
-								}
-							}
-						}
-						
-						if ( !inBody )
+						if ( null.is( body ) )
 							return new CalcErr( error: BladeString.of(
 									'A "blade" top-level operation'
 								 + " must have a sig line followed by"
@@ -232,34 +200,33 @@ final class Builder
 						def errors = []
 						
 						def siggedHeader = []
-						for ( headerPart in header )
+						
+						for ( headerPart in
+							BracketUtils.tokens( doc, header ) )
 						{
-							if ( headerPart in DocumentSelection )
+							def headerSize = headerPart.size()
+							def first = headerPart.first()
+							def last = headerPart.last()
+							
+							if ( headerSize == 1 )
 							{
-								def contents = Documents.
-									contents( doc, headerPart )
-								
-								siggedHeader.addAll contents[ 0 ].
-									split( /[ \t]+/ ).
-									findAll { !it.isEmpty() }
+								siggedHeader.add Documents.contents(
+									doc, first )[ 0 ]
+								continue
 							}
-							else if ( headerPart.size() != 1 )
-							{
-								errors.add DocumentSelection.
-									from( headerPart.first().start ).
-									to( headerPart.last().end )
-							}
+							
+							def inner = headerPart[ 1 ]
+							def innerSelection = inner[ 0 ]
+							if ( !(
+								headerSize == 3 && inner.size() == 1
+								&& innerSelection.linesSpanned() == 1
+								&& first.isEmpty() && last.isEmpty()
+							) )
+								errors.add DocumentSelection.from(
+									first.start ).to( last.stop )
 							else
-							{
-								def selection = headerPart[ 0 ]
-								def contents = Documents.
-									contents( doc, selection )
-								
-								if ( contents.size() != 1 )
-									errors.add selection
-								else
-									siggedHeader.add contents[ 0 ]
-							}
+								siggedHeader.add Documents.contents(
+									doc, innerSelection )[ 0 ]
 						}
 						
 						// TODO: Make this yield ErrorSelections

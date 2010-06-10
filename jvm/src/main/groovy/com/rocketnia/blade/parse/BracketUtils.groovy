@@ -29,8 +29,10 @@ final class BracketUtils
 {
 	private BracketUtils() {}
 	
+	private static final whitespacePattern = ~/\s/
+	
 	static List ltrim(
-		Document doc, List brackets, condition = ~/\s/ )
+		Document doc, List brackets, condition = whitespacePattern )
 	{
 		def ( List before, List after ) =
 			splitBeforeFirst( doc, brackets ) { !(it in condition) }
@@ -97,13 +99,13 @@ final class BracketUtils
 			
 			part = (DocumentSelection)part
 			
-			def strList = Documents.contents( doc, part )
+			def contents = Documents.contents( doc, part )
 			
-			assert !strList.isEmpty() &&
-				strList.every { it in String }
+			assert !contents.isEmpty() &&
+				contents.every { it in String }
 			
-			def head = strList.head()
-			def tail = strList.tail()
+			def head = contents.head()
+			def tail = contents.tail()
 			
 			def i = head.findIndexOf( conditionClosure )
 			if ( i != -1 )
@@ -161,4 +163,120 @@ final class BracketUtils
 		
 		return [ before, middle, after ]
 	}
+	
+	// This will split one bracket-set into an odd-sized list of
+	// bracket-sets such that every even (zero-indexed) element of the
+	// result list satisfies the condition all the way through, and
+	// every odd element of the result list satisfies the complement
+	// of the condition all the way through. In this way, the first
+	// and last elements are the padding, the other even elements are
+	// the inner spacing, and the odd elements are the tokens.
+	static List splitAlternating(
+		Document doc, List brackets, condition )
+	{
+		def result = []
+		def resultElement = []
+		def conditionExpectation = true
+		def previousStop = null
+		def surprise = { conditionExpectation != (it in condition) }
+		
+		def bank = { ->
+			
+			assert resultElement.first() in DocumentSelection
+			assert resultElement.last() in DocumentSelection
+			result.add resultElement
+			resultElement = []
+			conditionExpectation = !conditionExpectation
+		}
+		
+		for ( part in brackets )
+		{
+			if ( part in List )
+			{
+				if ( surprise( part ) )
+				{
+					bank()
+					
+					if ( null.is( previousStop ) )
+						throw new IllegalArgumentException()
+					
+					resultElement.add DocumentSelection.of(
+						previousStop, previousStop )
+					
+					previousStop = null
+				}
+				
+				resultElement.add part
+				continue
+			}
+			
+			if ( !(
+				part in DocumentSelection && null.is( previousStop )
+			) )
+				throw new IllegalArgumentException()
+			
+			part = (DocumentSelection)part
+			
+			def contents =
+				Documents.contents( doc, part ).join( '\n' )
+			def contentsStart = part.start
+			previousStop = part.stop
+			
+			while ( true )
+			{
+				def i = contents.findIndexOf( surprise )
+				if ( i == -1 )
+				{
+					resultElement.add DocumentSelection.of(
+						contentsStart, previousStop )
+					break
+				}
+				
+				def splitLocation =
+					contentsStart + contents.substring( 0, i )
+				
+				resultElement.add DocumentSelection.of(
+					contentsStart, splitLocation )
+				bank()
+				
+				contents = contents.substring( i )
+				contentsStart = splitLocation
+			}
+		}
+		
+		bank()
+		
+		if ( null.is( previousStop ) )
+			throw new IllegalArgumentException()
+		
+		if ( result.size() % 2 == 0 )
+			result.add( [ DocumentSelection.of(
+				previousStop, previousStop ) ] )
+		
+		return result
+	}
+	
+	private static List everyOther(
+		Iterable input, boolean takingFirst )
+	{
+		def result = []
+		def takingThisOne = takingFirst
+		
+		for ( elem in input )
+		{
+			if ( takingThisOne )
+				result.add elem
+			
+			takingThisOne = !takingThisOne
+		}
+		
+		return result
+	}
+	
+	static List evens( Iterable input ) { everyOther input, true }
+	static List odds( Iterable input ) { everyOther input, false }
+	
+	static List tokens(
+		Document doc, List brackets, condition = whitespacePattern )
+		{ odds splitAlternating( doc, brackets, condition ) }
 }
