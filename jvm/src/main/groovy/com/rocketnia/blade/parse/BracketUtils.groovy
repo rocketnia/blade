@@ -279,4 +279,27 @@ final class BracketUtils
 	static List tokens(
 		Document doc, List brackets, condition = whitespacePattern )
 		{ odds splitAlternating( doc, brackets, condition ) }
+	
+	// This returns a two-element list containing the first token
+	// (using the given condition as the "whitespace," or using actual
+	// whitespace if no condition is given) in the given bracket-set
+	// and the part of the bracket-set after the character/bracket
+	// that terminated the token. In other words, the front is trimmed
+	// off and a one-character (or one-bracket) gap is found, and then
+	// the other parts are returned. Both parts returned are returned
+	// as bracket-sets.
+	//
+	// If the token isn't terminated by a "whitespace"
+	// character/bracket, then the second element of the return value
+	// is null.
+	//
+	static List splitOffFirstToken(
+		Document doc, List brackets, condition = whitespacePattern )
+	{
+		def ltrimmed = ltrim( doc, brackets, condition )
+		def ( List before, middle, List after ) =
+			splitAtFirst( doc, ltrimmed, condition )
+		
+		return [ before, after ]
+	}
 }

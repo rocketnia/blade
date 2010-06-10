@@ -114,26 +114,22 @@ final class Builder
 						def view = (BracketView)declaration
 						
 						def doc = view.doc
-						def brackets = view.brackets
 						
-						def ltrimmed =
-							BracketUtils.ltrim( doc, brackets )
+						def ( List token, List body ) =
+							BracketUtils.splitOffFirstToken(
+								doc, view.brackets )
 						
-						def ( List before, middle, List after ) =
-							BracketUtils.
-								splitAtFirst( doc, ltrimmed, ~/\s/ )
-						
-						if ( before.size() != 1 || null.is( after ) )
+						if ( token.size() != 1 || null.is( body ) )
 							return new CalcResult(
 								value: new LeadEnd() )
 						
-						def headWord = Documents.contents(
-							doc, before[ 0 ] )[ 0 ]
+						def headWord =
+							Documents.contents( doc, token[ 0 ] )[ 0 ]
 						
 						def newView = new BracketView(
 							path: view.path,
 							doc: doc,
-							brackets: after
+							brackets: body
 						)
 						
 						return new CalcResult( value: mySoftAsk(
