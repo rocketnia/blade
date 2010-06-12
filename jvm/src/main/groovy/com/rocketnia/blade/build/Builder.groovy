@@ -133,7 +133,8 @@ final class Builder
 						)
 						
 						return new CalcResult( value: mySoftAsk(
-							[ "ext", "blade", headWord ] ) {
+							[ "base", "blade", "exports",
+								"top-level-ops", headWord ] ) {
 								
 								return new LeadCalc( calc:
 									calcCall( it, [ newView ] ) )
@@ -161,7 +162,8 @@ final class Builder
 			// that.
 			
 			myDefine(
-				[ "ext", "blade", "blade" ],
+				[ "base", "blade", "exports", "top-level-ops",
+					"blade" ],
 				BuiltIn.of { List< Blade > args ->
 					
 					if ( args.size() != 1 )
@@ -249,7 +251,7 @@ final class Builder
 			)
 			
 			myDefine(
-				[ "impl", "jvm-blade", "groovy-eval" ],
+				[ "base", "jvm-blade", "exports", "groovy-eval" ],
 				BuiltIn.of { List< Blade > args ->
 					
 					if ( args.size() != 1 )

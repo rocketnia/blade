@@ -6,7 +6,7 @@ We'll define a sample value here.
 [groovy
 	import com.rocketnia.blade.*
 	
-	define( [ "sample-var" ], BladeString.of( "sample-val" ) )
+	define( [ "out", "sample-var" ], BladeString.of( "sample-val" ) )
 ]
 
 
@@ -18,10 +18,13 @@ than the "blade" op.
 What we're demonstrating here is that it doesn't matter what order
 these definitions come in.
 
-[blade impl jvm-blade groovy-eval
+[blade base jvm-blade exports groovy-eval
 	import com.rocketnia.blade.*
 	import com.rocketnia.blade.declare.*
 	
-	softAsk( [ "impl", "jvm-blade", "groovy-eval" ] ) { define(
-		[ "ext", "blade", "groovy" ], it ) }
+	softAsk( [ "base", "jvm-blade", "exports", "groovy-eval" ]
+	) { define(
+		[ "base", "blade", "exports", "top-level-ops", "groovy" ],
+		it
+	) }
 ]
