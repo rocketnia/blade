@@ -1,0 +1,168 @@
+	hierarchy.txt
+	
+	Copyright 2010 Ross Angle
+	
+	This file is part of JVM-Blade.
+	
+	JVM-Blade is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published
+	by the Free Software Foundation, either version 3 of the License,
+	or (at your option) any later version.
+	
+	JVM-Blade is distributed in the hope that it will be useful, but
+	WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License
+	along with JVM-Blade.  If not, see <http://www.gnu.org/licenses/>.
+
+
+Blade will have a hierarchical structure to the way it keeps track of
+information about the project during the build. This should enable one
+section of the code not only to depend on values defined in other
+sections but also to depend on the section listings themselves in
+order to produce metadata, documentation, code completion information,
+compiled versions of functions, etc.
+
+A single namespace wouldn't have the same advantage. In order for the
+code to have what it contributes to a namespace depend on what's
+already there, it would require something like a partial-namespace
+promise (for the process to avoid depending on its own result), and
+that would be at least as complicated as this namespace-of-namespaces
+approach.
+
+Here's the result of some brainstorming as to what things belong in
+this hierarchy:
+
+ - libraries included by the configuration of tools used to develop
+   the project
+   - library version information
+     - (such as) the canonical name of the library, without regard to
+       the name it's filed under
+     - (such as) the name the library recommends being filed under
+   - library exports
+   - (such as) libraries which merely identify the Blade
+     implementation
+   - (such as) libraries which merely identify the IDE
+   - (such as) libraries that provide source control information like
+     the revision ID
+   - (such as) libraries that provide the date and time of the build
+   - (such as) libraries that provide information about the hardware
+     the build occurs on
+   - (such as) libraries that provide the preferences of the person
+     running the build
+   - (such as) implementation-specific utilities
+   - (such as) implementation-optimized utilities with nonstandard
+     APIs
+   - (such as) standard libraries
+   - (such as) plugin scripting APIs
+ - the raw directory structure and files comprising the project
+ - interpretations of the project resources
+   - project-specific elaboration/transformation/compilation phases
+   - parameterized instantiations of libraries
+   - the standard .blade interpretation structure
+     - interpretations associated with physically included libraries
+       - library version information
+       - library exports
+     - interpretations associated with manipulable source files
+       - namespaces intended for project-wide use
+       - namespaces intended for file-internal use
+       - namespaces intended for implicit use by certain syntaxes or
+         as metadata
+       - the text-based source document
+       - the list of paragraphs in the document, each as a bracket-set
+         or error selection
+ - products being constructed to help a developer or developer group
+   working on the project itself
+   - (such as) non-inline documentation of the project
+   - (such as) tool configurations as specified from within the
+     project
+   - (such as) arbitrary files
+ - products being constructed for release outside the development team
+   - (such as) documentation of the product
+   - (such as) an interactive REPL state being constructed
+   - (such as) a shell script
+   - (such as) a static website being constructed
+   - (such as) a servlet/webapp being constructed
+   - (such as) a console application
+   - (such as) a desktop application
+   - (such as) generated code for a runnable program (which could be
+     any of these things)
+   - (such as) arbitrary files
+   - (such as) a library being constructed
+     - version information
+     - library exports
+
+Here's the same hierarchy but in short-names-separated-by-slashes
+format, to evoke the idea of a directory structure. We're talking
+about namespaces of namespaces, so we need some names to tie
+everything together, and these are those names. (The slashes,
+meanwhile, are meaningless.)
+
+/base/  (filled by vendors, including the vendors of Blade standards)
+     /*/  (where "*" is the handle used for a base library; a library
+          provides a suggested handle, but that may be changed for
+          disambiguation purposes)
+       /version/
+               /title
+               /handle
+       /exports
+/file/  (filled according to the files in the project, filed under
+        single-string project paths)
+/model/  (filled by the project developers)
+      /phase/  (just a suggestion)
+      /lib/  (just a suggestion)
+      /blade/
+            /*/  (where "*" is the single-string project path of a
+                 physically included library)
+              /version/
+                      /title
+                      /handle
+              /exports
+            /*/  (where "*" is the single-string project path of a
+                 manipulable source file)
+              /private/*  (where "*" is a token provided by a syntax
+                          library)
+              /public/*  (where "*" is a token provided by a syntax
+                         library)
+              /implicit/*  (where "*" is a token provided by a syntax
+                           library)
+              /source
+              /paragraphs
+/aid/  (filled by the project developers; just a suggestion, but tools
+       will pay attention to this)
+    /*/  (where "*" is a user name or a general profile such as
+         "artist" or "everyone")
+      /doc/
+      /tool/
+      /file/
+/out/  (filled by the project developers; just a suggestion, but tools
+       will require this for the build to do anything)
+    /file/
+    /lib/
+        /version/
+                /title
+                /handle
+        /exports
+
+Note that a "token" should be taken as meaning approximately the same
+thing as a lisp uninterned symbol; it may have metadata such as a name
+to make debugging easier, but its primary purpose is to not be the
+same as anything else (and especially not things a programmer might
+make up, such as a string name).
+
+Tokens are used as the names for namespaces of names people should
+type a lot as they're programming, such as file-local namespaces,
+because the alternative would be to have libraries determine what
+those names are. All the other "*" names are provided by something
+the developers should have some control over: The base library handles
+are managed by the tools, the project paths are determined from the
+project, and the user profile names are personal to the developers. To
+have to modify or provide parameters to libraries just so that their
+syntaxes' namespaces don't conflict with each other is too much to ask
+of the developers.
+
+That said, it's just a suggestion. File-local namespaces can have
+string keys too, but it just isn't a very future-proof practice, and
+it won't be consistent with standard Blade libraries.

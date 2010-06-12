@@ -1,0 +1,62 @@
+	import-possibilities.txt
+	
+	Copyright 2010 Ross Angle
+	
+	This file is part of JVM-Blade.
+	
+	JVM-Blade is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published
+	by the Free Software Foundation, either version 3 of the License,
+	or (at your option) any later version.
+	
+	JVM-Blade is distributed in the hope that it will be useful, but
+	WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License
+	along with JVM-Blade.  If not, see <http://www.gnu.org/licenses/>.
+
+
+How possible are imports? Would the typical promise/hard-ask patterns
+allow for them?
+
+def [some variable x] 2
+  - results in a Lead that soft-asks for the local namespace's [some
+    variable x], doesn't promise anything, then contributes to x
+
+def [some variable x] (call [some variable y] 2)
+  - results in a Lead that soft-asks for the local namespace's [some
+    variable x] and the visible namespace's [some variable y],
+    promises to contribute only to x, hard-asks for y, then
+    contributes to x
+
+def [some variable x] (fn args (call [some variable y] args))
+  - results in a Lead that soft-asks for the local namespace's [some
+    variable x] and the visible namespace's [some variable y], doesn't
+    promise anything, then contributes to x
+
+import [some namespace n]
+  - results in a Lead that soft-asks for the things necessary to get a
+    Ref to [some namespace n], promises to contribute only to the
+    visible namespace, hard-asks for n, hard-asks for the local
+    namespace, then contributes to the visible namespace
+  - (Note that an "import" with this particular description doesn't
+    work well in duplicates. Really, import should be a multival, and
+    any one import should set things up so that the visible namespace
+    is calculated by taking the local namespace and all the import
+    directives and resolving them with respect to precedence rules.)
+
+(Note that each of the above should be promising before soft-asking
+too, as much as possible. That way there isn't a dependency loop if a
+previous promise hard-asks during the soft-ask handling.)
+
+Top-level bracket ops like the "blade" in [blade ...] should be under
+a slightly different system. A local redefinition of the "blade"
+top-level op shouldn't be possible, since there's no way to detect
+such an override until it's too late. Specifically, the system should
+be a single namespace per file which is injected with "blade" to get
+things started. Any ad-hoc import form for top-level ops will have to
+be careful not to blindly set up bindings which might already be set;
+a more likely scheme would be to have a single .blade file which sets
+up the top-level environments for a bunch of others.
