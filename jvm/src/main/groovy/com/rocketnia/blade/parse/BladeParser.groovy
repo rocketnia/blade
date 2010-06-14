@@ -290,12 +290,12 @@ final class BladeParser
 	static List parseParagraphedBrackets( String code )
 		{ parseParagraphedBrackets ListDocument.of( code ) }
 	
-	static Set parseProject( File root )
+	static Map< String, Set > parseProject( File root )
 	{
 		if ( null.is( root ) || !root.exists() )
 			return null
 		
-		Set result = []
+		def result = [:]
 		for ( File file: Misc.getNonDirs( root,
 			dirNameFilter: { !it.contains( "." ) },
 			nonDirNameFilter: { it.endsWith ".blade" } ) )
@@ -308,12 +308,15 @@ final class BladeParser
 			)
 				relativeParts.add parent.getName()
 			
+			Set localResults = []
 			def path = relativeParts.reverse().join( '/' )
 			def doc = new ListDocument( file.readLines() )
 			for ( brackets in parseParagraphedBrackets( doc ) )
-				result.add brackets in ErrorSelection ? brackets :
-					new BracketView(
+				localResults.add brackets in ErrorSelection ?
+					brackets : new BracketView(
 						path: path, doc: doc, brackets: brackets )
+			
+			result[ path ] = localResults
 		}
 		
 		return result

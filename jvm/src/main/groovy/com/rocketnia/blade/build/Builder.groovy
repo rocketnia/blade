@@ -31,7 +31,7 @@ final class Builder
 	
 	static Blade build( File root )
 	{
-		Set parsedProject = BladeParser.parseProject( root )
+		def parsedProject = BladeParser.parseProject( root )
 		
 		Blade sigBase = [ toString: { "sigBase" } ] as Blade
 		
@@ -222,7 +222,7 @@ final class Builder
 				}
 			}
 			
-			for ( declaration in parsedProject )
+			for ( declaration in parsedProject.values().sum( [] ) )
 			{
 				if ( declaration in ErrorSelection )
 					initialLeads.add new LeadErr(

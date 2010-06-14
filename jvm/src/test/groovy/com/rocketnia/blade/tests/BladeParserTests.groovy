@@ -105,7 +105,7 @@ continuation of the above paragraph.
 	
 	void testProject()
 	{
-		def somethingBrackets = [
+		def sBrackets = [
 			[
 				sel( 2, 1 ).to( 4, 2 ),
 				[ sel( 4, 3 ) + 9 ],
@@ -114,27 +114,45 @@ continuation of the above paragraph.
 			[ sel( 5, 5 ) + 4 ]
 		]
 		
-		def somethingElseBrackets = [ [
+		def seBrackets = [ [
 			sel( 0, 1 ) + 15,
 			[ sel( 0, 17 ) + 4 ],
 			sel( 0, 22 ) + 1
 		] ]
 		
-		def parseProj = { file -> BladeParser.
-			parseProject( BladeTests.getResourceFile( file ) ).
-			collect { it in BracketView ?
-				[ it.path, it.brackets ] : it } as Set }
+		def parseProj = { file ->
+			
+			def parsedProject = BladeParser.
+				parseProject( BladeTests.getResourceFile( file ) )
+			
+			def result = [:]
+			parsedProject.each { String path, Set declarations ->
+				
+				result[ path ] = declarations.collect {
+					
+					if ( !(it in BracketView) )
+						return it
+					
+					it = (BracketView)it
+					return [ it.path, it.brackets ]
+				} as Set
+			}
+			
+			return result
+		}
 		
-		assertEquals parseProj( "/parseproject/something.blade" ),
-			somethingBrackets.collect { [ "", it ] } as Set
+		def sFile = "something.blade"
+		def seFile = "subdir/somethingelse.blade"
 		
-		assertEquals parseProj(
-			"/parseproject/subdir/somethingelse.blade" ),
-			somethingElseBrackets.collect { [ "", it ] } as Set
+		assertEquals parseProj( "/parseproject/$sFile" ),
+			[ (""): sBrackets.collect { [ "", it ] } as Set ]
 		
-		assertEquals parseProj( "/parseproject" ),
-			(somethingBrackets.collect { [ "something.blade", it ] } +
-			somethingElseBrackets.collect { [
-				"subdir/somethingelse.blade", it ] }) as Set
+		assertEquals parseProj( "/parseproject/$seFile" ),
+			[ (""): seBrackets.collect { [ "", it ] } as Set ]
+		
+		assertEquals parseProj( "/parseproject" ), [
+			(sFile): sBrackets.collect { [ sFile, it ] } as Set,
+			(seFile): seBrackets.collect { [ seFile, it ] } as Set
+		]
 	}
 }
