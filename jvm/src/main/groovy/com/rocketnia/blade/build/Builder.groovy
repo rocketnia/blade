@@ -238,14 +238,30 @@ final class Builder
 						interpretDeclaration, [ declaration ] ) )
 			}
 			
+			def topLevelOpToken =
+				[ toString: { "top-level-op-token" } ] as Blade
+			
 			// If the Blade program makes no explicit contributions
 			// and we don't make any automatic ones, then refBase
 			// won't have any contributions, and it won't be able to
 			// resolve.
 			//
-			// Since we are in fact making at least these two
-			// automatic contributions, we don't have to worry about
-			// that.
+			// Since we are in fact making a bunch of automatic
+			// contributions, we don't have to worry about that.
+			
+			myDefine(
+				[ "base", "blade", "exports", "top-level-op-token" ],
+				topLevelOpToken
+			)
+			
+			for ( path in parsedProject.keySet() )
+			{
+				myDefine(
+					[ "model", "blade", path, "private",
+						topLevelOpToken, "blade" ],
+					bladeTopLevelOp
+				)
+			}
 			
 			myDefine(
 				[ "base", "blade", "exports", "top-level-ops",
