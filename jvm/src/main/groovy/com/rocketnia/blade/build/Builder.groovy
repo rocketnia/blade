@@ -68,17 +68,23 @@ final class Builder
 			refBase = it
 			
 			Closure mySoftAsk =
-				{ List< String > derivs, Closure body -> BuiltIn.
-					softAsk(
-						refBase,
-						derivs.collect( BladeString.&of ),
-						body
-					) }
+				{ List derivs, Closure body -> BuiltIn.softAsk(
+					refBase,
+					derivs.collect {
+						
+						switch ( it )
+						{
+						case Blade: return it
+						case String: return BladeString.of( it )
+						default: throw new IllegalArgumentException()
+						}
+					},
+					body
+				) }
 			
 			Set< Lead > initialLeads = []
 			
-			Closure myLeadDefine =
-				{ List< String > derivs, Blade value ->
+			Closure myLeadDefine = { List derivs, Blade value ->
 				
 				return mySoftAsk( derivs ) { new LeadDefine(
 					target: new ReflectedRef( ref: it ),
@@ -88,7 +94,7 @@ final class Builder
 				) }
 			}
 			
-			Closure myDefine = { List< String > derivs, Blade value ->
+			Closure myDefine = { List derivs, Blade value ->
 				
 				initialLeads.add myLeadDefine( derivs, value )
 			}
