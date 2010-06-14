@@ -142,6 +142,86 @@ final class Builder
 					}
 				}
 			
+			def bladeTopLevelOp = BuiltIn.of { List< Blade > args ->
+				
+				if ( args.size() != 1 )
+					return new CalcErr( error: BladeString.of(
+							'Expected 1 argument to the "blade"'
+						 + " top-level op and got ${args.size()}." ) )
+				
+				return BuiltIn.hardAsk(
+					args.head() ) { declaration ->
+					
+					if ( !(declaration in BracketView) )
+						return new CalcErr( error: BladeString.of(
+								'The argument to the "blade"'
+							 + " top-level op wasn't a BracketView."
+						) )
+					
+					def view = (BracketView)declaration
+					def doc = view.doc
+					
+					def ( List header, middle, List body ) =
+						BracketUtils.splitAtFirst(
+							doc, view.brackets, '\n' )
+					
+					if ( null.is( body ) )
+						return new CalcErr( error: BladeString.of(
+								'A "blade" top-level operation must'
+							 + " have a sig line followed by a body"
+							 + " to pass to the value of that sig."
+						) )
+					
+					def errors = []
+					
+					def siggedHeader = []
+					
+					for ( headerPart in
+						BracketUtils.tokens( doc, header ) )
+					{
+						def headerSize = headerPart.size()
+						def first = headerPart.first()
+						def last = headerPart.last()
+						
+						if ( headerSize == 1 )
+						{
+							siggedHeader.add Documents.
+								contents( doc, first )[ 0 ]
+							continue
+						}
+						
+						def inner = headerPart[ 1 ]
+						def innerSelection = inner[ 0 ]
+						if ( !(
+							headerSize == 3 && inner.size() == 1
+							&& innerSelection.linesSpanned() == 1
+							&& first.isEmpty() && last.isEmpty()
+						) )
+							errors.add DocumentSelection.
+								from( first.start ).to( last.stop )
+						else
+							siggedHeader.add Documents.
+								contents( doc, innerSelection )[ 0 ]
+					}
+					
+					// TODO: Make this yield ErrorSelections somehow.
+					if ( !errors.isEmpty() )
+						return new CalcErr( error: BladeString.of(
+								'Parts of the sig in a "blade"'
+							 + " top-level operation had multiple"
+							 + " levels of bracket nesting: $errors"
+						) )
+					
+					def bodyView = new BracketView(
+						path: view.path, doc: doc, brackets: body )
+					
+					return new CalcResult( value:
+						mySoftAsk( siggedHeader ) { new LeadCalc(
+							calc: calcCall( it, [ bodyView ] ) ) }
+					)
+				}
+			}
+			
 			for ( declaration in parsedProject )
 			{
 				if ( declaration in ErrorSelection )
@@ -164,90 +244,7 @@ final class Builder
 			myDefine(
 				[ "base", "blade", "exports", "top-level-ops",
 					"blade" ],
-				BuiltIn.of { List< Blade > args ->
-					
-					if ( args.size() != 1 )
-						return new CalcErr( error: BladeString.of(
-								'Expected 1 argument to the "blade"'
-							 + " top-level op and got ${args.size()}."
-						) )
-					
-					return BuiltIn.hardAsk(
-						args.head() ) { declaration ->
-						
-						if ( !(declaration in BracketView) )
-							return new CalcErr( error: BladeString.of(
-									'The argument to the "blade"'
-								 + " top-level op wasn't a"
-								 + " BracketView." ) )
-						
-						def view = (BracketView)declaration
-						def doc = view.doc
-						
-						def ( List header, middle, List body ) =
-							BracketUtils.splitAtFirst(
-								doc, view.brackets, '\n' )
-						
-						if ( null.is( body ) )
-							return new CalcErr( error: BladeString.of(
-									'A "blade" top-level operation'
-								 + " must have a sig line followed by"
-								 + " a body to pass to the value of"
-								 + " that sig." ) )
-						
-						def errors = []
-						
-						def siggedHeader = []
-						
-						for ( headerPart in
-							BracketUtils.tokens( doc, header ) )
-						{
-							def headerSize = headerPart.size()
-							def first = headerPart.first()
-							def last = headerPart.last()
-							
-							if ( headerSize == 1 )
-							{
-								siggedHeader.add Documents.contents(
-									doc, first )[ 0 ]
-								continue
-							}
-							
-							def inner = headerPart[ 1 ]
-							def innerSelection = inner[ 0 ]
-							if ( !(
-								headerSize == 3 && inner.size() == 1
-								&& innerSelection.linesSpanned() == 1
-								&& first.isEmpty() && last.isEmpty()
-							) )
-								errors.add DocumentSelection.from(
-									first.start ).to( last.stop )
-							else
-								siggedHeader.add Documents.contents(
-									doc, innerSelection )[ 0 ]
-						}
-						
-						// TODO: Make this yield ErrorSelections
-						// somehow.
-						if ( !errors.isEmpty() )
-							return new CalcErr( error: BladeString.of(
-									'Parts of the sig in a "blade"'
-								 + " top-level operation had multiple"
-								 + " levels of bracket nesting:"
-								 + " $errors" ) )
-						
-						def bodyView = new BracketView(
-							path: view.path,
-							doc: doc,
-							brackets: body
-						)
-						
-						return new CalcResult( value:
-							mySoftAsk( siggedHeader ) { new LeadCalc(
-								calc: calcCall( it, [ bodyView ] ) ) }
-						)
-					}
-				}
+				bladeTopLevelOp
 			)
 			
 			myDefine(
