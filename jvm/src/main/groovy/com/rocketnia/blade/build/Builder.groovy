@@ -99,6 +99,9 @@ final class Builder
 				initialLeads.add myLeadDefine( derivs, value )
 			}
 			
+			def topLevelOpToken =
+				[ toString: { "top-level-op-token" } ] as Blade
+			
 			Blade interpretDeclaration =
 				BuiltIn.of { List< Blade > args ->
 					
@@ -119,6 +122,7 @@ final class Builder
 						
 						def view = (BracketView)declaration
 						
+						def path = view.path
 						def doc = view.doc
 						
 						def ( List token, List body ) =
@@ -133,14 +137,11 @@ final class Builder
 							Documents.contents( doc, token[ 0 ] )[ 0 ]
 						
 						def newView = new BracketView(
-							path: view.path,
-							doc: doc,
-							brackets: body
-						)
+							path: path, doc: doc, brackets: body )
 						
 						return new CalcResult( value: mySoftAsk(
-							[ "base", "blade", "exports",
-								"top-level-ops", headWord ] ) {
+							[ "model", "blade", path, "private",
+								topLevelOpToken, headWord ] ) {
 								
 								return new LeadCalc( calc:
 									calcCall( it, [ newView ] ) )
@@ -238,9 +239,6 @@ final class Builder
 						interpretDeclaration, [ declaration ] ) )
 			}
 			
-			def topLevelOpToken =
-				[ toString: { "top-level-op-token" } ] as Blade
-			
 			// If the Blade program makes no explicit contributions
 			// and we don't make any automatic ones, then refBase
 			// won't have any contributions, and it won't be able to
@@ -302,7 +300,8 @@ final class Builder
 								calcCall: calcCall,
 								refBase: refBase,
 								softAsk: mySoftAsk,
-								define: myLeadDefine
+								define: myLeadDefine,
+								path: view.path
 							] ) ).evaluate( stringContents ) )
 					}
 				}

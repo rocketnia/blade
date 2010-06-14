@@ -115,6 +115,35 @@ class BuiltIn implements Blade {
 			}
 		)
 	}
+	
+	static Lead leadHardAsk( Blade ref, Closure body )
+	{
+		def derefed = Refs.derefSoft( ref )
+		
+		if ( !(derefed in Ref) )
+			return body( derefed )
+		
+		def derefedRef = (Ref)derefed
+		
+		return new LeadCalc( calc: new CalcHardAsk(
+			ref: new ReflectedRef( ref: derefed ),
+			next: of { List< Blade > args ->
+				
+				if ( args.size() != 1 )
+					return new CalcErr( error: BladeString.of(
+							"Expected 1 argument to a CalcHardAsk"
+						 + " continuation and got ${args.size()}." ) )
+				
+				def arg = Refs.derefSoft( args[ 0 ] )
+				if ( arg in Ref )
+					return new CalcErr( error: BladeString.of(
+							"A hard ask was continued with an"
+						 + " unresolved Ref." ) )
+				
+				return new CalcResult( value: body( arg ) )
+			}
+		) )
+	}
 }
 
 class BladeString implements Blade, Internable {

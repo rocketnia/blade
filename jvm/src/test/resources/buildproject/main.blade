@@ -13,7 +13,7 @@ We'll define a sample value here.
 In order to do that, we define the "groovy" top-level op. We do that
 here, using the existing "blade" top-level op. Note that this is sort
 of an unnecessary step, since the "groovy" op isn't much simpler to
-than the "blade" op.
+use than the "blade" op.
 
 What we're demonstrating here is that it doesn't matter what order
 these definitions come in.
@@ -22,9 +22,11 @@ these definitions come in.
 	import com.rocketnia.blade.*
 	import com.rocketnia.blade.declare.*
 	
-	softAsk( [ "base", "jvm-blade", "exports", "groovy-eval" ]
-	) { define(
-		[ "base", "blade", "exports", "top-level-ops", "groovy" ],
+	softAsk( [ "base", "blade", "exports", "top-level-op-token" ]
+	) { BuiltIn.leadHardAsk( it ) { topLevelOpToken -> softAsk(
+		[ "base", "jvm-blade", "exports", "groovy-eval" ] ) { define(
+		[ "model", "blade", path, "private", topLevelOpToken,
+			"groovy" ],
 		it
-	) }
+	) } } }
 ]
