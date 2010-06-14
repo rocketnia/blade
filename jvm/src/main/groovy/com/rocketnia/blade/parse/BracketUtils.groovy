@@ -66,6 +66,14 @@ final class BracketUtils
 	}
 	
 	static List splitAtFirst( Document doc, List brackets, condition )
+		{ splitAtFirstOrLast true, doc, brackets, condition }
+	
+	// TODO: Test this.
+	static List splitAtLast( Document doc, List brackets, condition )
+		{ splitAtFirstOrLast false, doc, brackets, condition }
+	
+	private static List splitAtFirstOrLast(
+		boolean first, Document doc, List brackets, condition )
 	{
 		def conditionClosure = { it in condition }
 		
@@ -73,7 +81,15 @@ final class BracketUtils
 		def middle = null
 		def after = null
 		
-		for ( part in brackets )
+		def reverseIfLast = { first ? it : it?.reverse() }
+		def cap = { beforeCap, middleValue, afterCap ->
+			
+			before.add first ? beforeCap : afterCap
+			middle = middleValue
+			after = [ first ? afterCap : beforeCap ]
+		}
+		
+		for ( part in reverseIfLast( brackets ) )
 		{
 			if ( !null.is( middle ) )
 			{
@@ -99,7 +115,8 @@ final class BracketUtils
 			
 			part = (DocumentSelection)part
 			
-			def contents = Documents.contents( doc, part )
+			def contents =
+				reverseIfLast( Documents.contents( doc, part ) )
 			
 			assert !contents.isEmpty() &&
 				contents.every { it in String }
@@ -107,35 +124,39 @@ final class BracketUtils
 			def head = contents.head()
 			def tail = contents.tail()
 			
-			def i = head.findIndexOf( conditionClosure )
+			def i = first ? head.findIndexOf( conditionClosure ) :
+				head.findLastIndexOf( conditionClosure )
+			
 			if ( i != -1 )
 			{
 				def start = part.start
 				def splitLineLocation = start.lineLocation.plus(
 					head.substring( 0, i + 1 ) )
-				before.add DocumentSelection.
-					from( start ).to( splitLineLocation.prefix() )
-				middle = head[ i ]
-				after = [ DocumentSelection.
-					from( start.lineNumber, splitLineLocation ).
-					to( part.stop ) ]
+				
+				cap DocumentSelection.from(
+						start ).to( splitLineLocation.prefix() ),
+					head[ i ],
+					DocumentSelection.
+						from( start.lineNumber, splitLineLocation ).
+						to( part.stop )
 			}
 			else if ( tail.isEmpty() )
 				before.add part
 			else if ( '\n' in condition )
 			{
-				before.add DocumentSelection.from( part.start ) + head
-				middle = '\n'
-				after = []
-				after.add DocumentSelection.
-					from( part.start.lineNumber + 1 ).to( part.stop )
+				cap DocumentSelection.from( part.start ) + head,
+					'\n',
+					DocumentSelection.from(
+						part.start.lineNumber + 1 ).to( part.stop )
 			}
 			else
 			{
-				for ( lineIndex in 0..<tail.size() )
+				for ( lineIndex in reverseIfLast( 0..<tail.size() ) )
 				{
 					def line = tail[ lineIndex ]
-					def j = line.findIndexOf( conditionClosure )
+					def j = first ?
+						line.findIndexOf( conditionClosure ) :
+						line.findLastIndexOf( conditionClosure )
 					if ( j == -1 )
 						continue
 					
@@ -145,14 +166,14 @@ final class BracketUtils
 					def splitLineLocation =
 						LineLocation.of( tail.substring( 0, j + 1 ) )
 					
-					before.add DocumentSelection.from( start ).to(
+					cap DocumentSelection.from( start ).to(
 							splitLineNumber,
 							splitLineLocation.prefix()
-						)
-					middle = line[ j ]
-					after = [ DocumentSelection.
-						from( splitLineNumber, splitLineLocation ).
-						to( part.stop ) ]
+						),
+						line[ j ],
+						DocumentSelection.from(
+							splitLineNumber, splitLineLocation ).
+							to( part.stop )
 					break
 				}
 				
@@ -161,7 +182,9 @@ final class BracketUtils
 			}
 		}
 		
-		return [ before, middle, after ]
+		return reverseIfLast( [
+			reverseIfLast( before ), middle, reverseIfLast( after )
+		] )
 	}
 	
 	// This will split one bracket-set into an odd-sized list of
