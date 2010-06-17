@@ -183,6 +183,11 @@ final class Leads
 				if ( key in Ref )
 					return harden( key )
 				
+				if ( !(key in BladeKey) )
+					throw new RuntimeException(
+							"The key of a LeadSoftAsk wasn't a"
+						 + " BladeKey." )
+				
 				def reflectedSource = lead2.getSource()
 				if ( reflectedSource in Ref )
 					return harden( reflectedSource )

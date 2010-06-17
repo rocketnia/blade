@@ -33,7 +33,7 @@ final class Builder
 	{
 		def parsedProject = BladeParser.parseProject( root )
 		
-		Blade sigBase = [ toString: { "sigBase" } ] as Blade
+		Blade sigBase = [ toString: { "sigBase" } ] as BladeKey
 		
 		Ref refBase
 		
@@ -132,7 +132,7 @@ final class Builder
 			}
 			
 			def topLevelOpToken =
-				[ toString: { "top-level-op-token" } ] as Blade
+				[ toString: { "top-level-op-token" } ] as BladeKey
 			
 			Blade interpretDeclaration =
 				BuiltIn.of { List< Blade > args ->

@@ -28,7 +28,7 @@ enum ReductionType { Constant, Bag, Map }
 class Ref implements Blade {
 	private ReductionType type
 	private List< Blade > partialBag
-	private Map< Blade, Ref > map
+	private Map< BladeKey, Ref > map
 	private Blade value
 	final Blade sig
 	private final Closure registrar
@@ -137,49 +137,35 @@ class Ref implements Blade {
 		{ null.is( value ) && null.is( partialBag ) }
 	boolean canGetFromMap() { null.is( partialBag ) }
 	
-	private Ref getFromMap( Blade key, boolean hard )
+	synchronized Ref getFromMapHard( BladeKey key )
 	{
-		key = Refs.derefSoft( key )
+		if ( type != ReductionType.Map )
+			throw new IllegalStateException(
+					"The getFromMapHard method was called on a"
+				 + " non-map reference." )
 		
-		if ( key in Ref )
-			throw new IllegalArgumentException(
-				"The key must be a non-Ref Blade value." )
-		
-		if ( !hard )
-			return map?.get( key )
-		
-		synchronized ( this )
+		if ( !null.is( value ) )
 		{
-			if ( type != ReductionType.Map )
+			def result = map[ key ]
+			
+			if ( null.is( result ) )
 				throw new IllegalStateException(
-						"The getFromMap method was called on a"
-					 + " non-map reference." )
+						"The getFromMap method was called with a new"
+					 + " key on an already resolved reference." )
 			
-			if ( !null.is( value ) )
-			{
-				def result = map[ key ]
-				
-				if ( null.is( result ) )
-					throw new IllegalStateException(
-							"The getFromMap method was called with a"
-						 + " new key on an already resolved"
-						 + " reference." )
-				
-				return result
-			}
-			
-			if ( null.is( map ) )
-				map = [:]
-			
-			return map[ key ] ?: (map[ key ] = new Ref(
-				new Sig( parent: sig, derivative: key ),
-				registrar
-			))
+			return result
 		}
+		
+		if ( null.is( map ) )
+			map = [:]
+		
+		return map[ key ] ?: (map[ key ] = new Ref(
+			new Sig( parent: sig, derivative: key ),
+			registrar
+		))
 	}
 	
-	Ref getFromMapHard( Blade key ) { getFromMap key, true }
-	Ref getFromMapSoft( Blade key ) { getFromMap key, false }
+	Ref getFromMapSoft( BladeKey key ) { map?.get key }
 	
 	boolean isFinishable() { isPartialBag() || isPartialMap() }
 	
@@ -192,7 +178,7 @@ class Ref implements Blade {
 		}
 		else if ( isPartialMap() )
 		{
-			value = new BladeNamespace( map: map )
+			value = new BladeNamespace( map )
 			derefSoft()
 		}
 		else
@@ -278,17 +264,16 @@ class BladeMultiset implements Blade {
 }
 
 class BladeNamespace implements Blade {
-	Map< Blade, Blade > map
+	private final Map< BladeKey, Blade > map
+	
+	BladeNamespace( Map< ? extends BladeKey, ? extends Blade > map )
+		{ this.map = map + [:] }
 	
 	String toString()
 		{ map.each { k, v -> getAt k }; return "BladeNamespace$map" }
 	
-	public Blade getAt( Blade key )
+	public Blade getAt( BladeKey key )
 	{
-		if ( key in Ref )
-			throw new IllegalArgumentException(
-				"The key must be a non-Ref Blade value." )
-		
 		def result = map[ key ]
 		
 		if ( result in Ref )

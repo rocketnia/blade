@@ -38,7 +38,7 @@ class BuiltIn implements Blade {
 	String toString() { "BuiltIn(${value.inspect()})" }
 	
 	private static Lead softAsk1(
-		Ref source, Blade key, Closure body )
+		Ref source, BladeKey key, Closure body )
 	{
 		def firstTry = source.getFromMapSoft( key )
 		
@@ -74,7 +74,7 @@ class BuiltIn implements Blade {
 	}
 	
 	static Lead softAsk(
-		Ref refBase, List< Blade > derivs, Closure body )
+		Ref refBase, List< BladeKey > derivs, Closure body )
 	{
 		if ( derivs.isEmpty() )
 			return body( refBase )
@@ -146,7 +146,19 @@ class BuiltIn implements Blade {
 	}
 }
 
-class BladeString implements Blade, Internable {
+// A BladeKey is any value which is allowed to be compared by
+// reference identity, and therefore is a suitable candidate for use
+// as a key in a BladeNamespace.
+//
+// TODO: Currently, BladeString is the only non-Proxy class that
+// implements BladeKey, making this type a lot like lisp's interned
+// uninterned symbols. See if BladeBoolean or some other class would
+// be a good candidate for this too. If there are no other good
+// candidates, consider renaming this to BladeSymbol.
+// 
+interface BladeKey extends Blade {}
+
+class BladeString implements BladeKey, Internable {
 	protected String value
 	
 	protected static final Interner< BladeString > interner =
