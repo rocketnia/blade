@@ -51,9 +51,25 @@ final class Builder
 					def value = ((BuiltIn)fn).getValue()
 					if ( value in Closure )
 					{
-						def result = ((Closure)value).call( args )
-						assert result in Calc
-						return result
+						value = (Closure)value
+						
+						def result
+						def hasResult = true
+						
+						switch (
+							value.getMaximumNumberOfParameters() )
+						{
+						case 1: result = value( args ); break
+						case 2: result =
+							value( args, DynamicEnv.PURE ); break
+						default: hasResult = false; break
+						}
+						
+						if ( hasResult )
+						{
+							assert result in Calc
+							return result
+						}
 					}
 				}
 				

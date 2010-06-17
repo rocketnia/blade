@@ -27,8 +27,8 @@ abstract class Lead extends RefMap {}
 
 // A request for the source map ReflectedRef to have the given key.
 // The value isn't needed yet, so it can be filled in later using
-// mutation. The next field is a Blade function that will accept the
-// resulting ReflectedRef and return a new Lead.
+// mutation. The next field is a pure Blade function that will accept
+// the resulting ReflectedRef and return a new Lead.
 class LeadSoftAsk extends Lead {
 	Blade getSource() { get "source" }
 	Blade setSource( Blade val ) { set "source", val }
@@ -39,7 +39,8 @@ class LeadSoftAsk extends Lead {
 }
 
 // A definition of a target constant ReflectedRef as value. The next
-// field is a nullary Blade function that will return a new Lead.
+// field is a nullary, pure Blade function that will return a new
+// Lead.
 class LeadDefine extends Lead {
 	Blade getTarget() { get "target" }
 	Blade setTarget( Blade val ) { set "target", val }
@@ -50,8 +51,8 @@ class LeadDefine extends Lead {
 }
 
 // A contribution of value to a target bag ReflectedRef. The next
-// field is a nullary Blade function that will return a new Lead. Note
-// that value can be an unresolved reference.
+// field is a nullary, pure Blade function that will return a new
+// Lead. Note that value can be an unresolved reference.
 class LeadBagContrib extends Lead {
 	Blade getTarget() { get "target" }
 	Blade setTarget( Blade val ) { set "target", val }
@@ -64,8 +65,8 @@ class LeadBagContrib extends Lead {
 // A promise not to contribute to any Ref with a sig that doesn't
 // satisfy the filter, even by just a LeadSoftAsk for a new child of
 // that Ref. The filter field is a Blade function that will accept a
-// sig and return a BladeBoolean. The next field is a nullary Blade
-// function that will return a new Lead.
+// sig and return a BladeBoolean. The next field is a nullary, pure
+// Blade function that will return a new Lead.
 class LeadPromise extends Lead {
 	Blade getFilter() { get "filter" }
 	Blade setFilter( Blade val ) { set "filter", val }

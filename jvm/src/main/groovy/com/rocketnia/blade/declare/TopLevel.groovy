@@ -45,9 +45,10 @@ final class TopLevel
 	//
 	// The calcCall parameter should be a closure that takes a Blade
 	// value and a Groovy List of Blade values and returns a Calc
-	// representing the result of a Blade function application. Any or
-	// all of the Blade values may be unresolved Refs; if their values
-	// are needed in the calculation, that's the point of CalcHardAsk.
+	// representing the result of a Blade function application with a
+	// pure DynamicEnv. Any or all of the Blade values may be
+	// unresolved Refs; if their values are needed in the calculation,
+	// that's the point of CalcHardAsk.
 	//
 	// The refBaseToInitial parameter should be a closure that takes a
 	// Ref corresponding to sigBase, records it somewhere where

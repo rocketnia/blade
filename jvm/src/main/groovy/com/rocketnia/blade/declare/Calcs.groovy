@@ -26,8 +26,8 @@ import com.rocketnia.blade.*
 abstract class Calc extends RefMap {}
 
 // A demand for the given constant ReflectedRef to be resolved. The
-// next field is a Blade function that will take the resolved value of
-// the ref and return a new Calc.
+// next field is a pure Blade function that will take the resolved
+// value of the ref and return a new Calc.
 class CalcHardAsk extends Calc {
 	Blade getRef() { get "ref" }
 	Blade setRef( Blade val ) { set "ref", val }
@@ -54,6 +54,12 @@ class CalcResult extends Calc {
 class CalcCalc extends Calc {
 	Blade getCalc() { get "calc" }
 	Blade setCalc( Blade val ) { set "calc", val }
+}
+
+class DynamicEnv {
+	static final DynamicEnv PURE = new DynamicEnv()
+	
+	protected DynamicEnv() {}
 }
 
 
