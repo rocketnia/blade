@@ -317,7 +317,8 @@ final class Leads
 			case LeadPromise:
 				def lead2 = (LeadPromise)lead
 				addPromise lead2.getFilter()
-				lead = calcCall( lead2.getNext(), [] )
+				lead = new LeadCalc(
+					calc: calcCall( lead2.getNext(), [] ) )
 				break
 				
 			case LeadCalc:

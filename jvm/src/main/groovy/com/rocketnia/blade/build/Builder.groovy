@@ -37,14 +37,22 @@ final class Builder
 		
 		Ref refBase
 		
-		Closure calcCall = { Blade fnRef, List< Blade > args ->
+		def PURE = DynamicEnv.PURE
+		Closure calcCall
+		calcCall = { Blade fnRef, List< Blade > args,
+			DynamicEnv dynamicEnv = PURE ->
 			
 			// TODO: Support more type-specific behavior.
 			// TODO: Support extending this from within Blade, all the
 			// while maintaining the semantics that the fn here should
 			// act as a pure function that returns only Calcs.
 			
-			return BuiltIn.hardAsk( fnRef ) { fn ->
+			while ( true )
+			{
+				Blade fn = Refs.derefSoft( fnRef )
+				
+				if ( fn in Ref )
+					return BuiltIn.hardAsk( fn ) { calcCall it, args }
 				
 				if ( fn in BuiltIn )
 				{
@@ -60,16 +68,24 @@ final class Builder
 							value.getMaximumNumberOfParameters() )
 						{
 						case 1: result = value( args ); break
-						case 2: result =
-							value( args, DynamicEnv.PURE ); break
+						case 2:
+							result = value( args, dynamicEnv ); break
 						default: hasResult = false; break
 						}
 						
-						if ( hasResult )
-						{
-							assert result in Calc
+						if ( result in Calc )
 							return result
+						
+						if ( result in TrampolineCalcCall )
+						{
+							result = (TrampolineCalcCall)result
+							fnRef = result.fn
+							args = result.args
+							dynamicEnv = result.dynamicEnv
+							continue
 						}
+						
+						assert !hasResult
 					}
 				}
 				

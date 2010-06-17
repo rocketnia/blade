@@ -62,6 +62,23 @@ class DynamicEnv {
 	protected DynamicEnv() {}
 }
 
+class TrampolineCalcCall {
+	Blade fn
+	List< Blade > args = []
+	DynamicEnv dynamicEnv = DynamicEnv.PURE
+	
+	static TrampolineCalcCall to( Blade fn )
+		{ new TrampolineCalcCall( fn: fn ) }
+	
+	static TrampolineCalcCall to( Blade fn, List< Blade > args )
+		{ new TrampolineCalcCall( fn: fn, args: args ) }
+	
+	static TrampolineCalcCall to(
+		Blade fn, List< Blade > args, DynamicEnv dynamicEnv )
+		{ new TrampolineCalcCall(
+			fn: fn, args: args, dynamicEnv: dynamicEnv ) }
+}
+
 
 final class Calcs
 {
