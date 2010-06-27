@@ -285,4 +285,6 @@ class BladeNamespace implements Blade {
 		
 		return result
 	}
+	
+	public Map< BladeKey, Blade > toJava() { map + [:] }
 }

@@ -183,6 +183,8 @@ final class BladeBoolean implements Blade {
 	
 	static final TRUE = new BladeBoolean( true )
 	static final FALSE = new BladeBoolean( false )
+	
+	static BladeBoolean of( boolean value ) { value ? TRUE : FALSE }
 }
 
 final class Misc
