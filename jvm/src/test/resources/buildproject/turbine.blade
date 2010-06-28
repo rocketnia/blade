@@ -1,0 +1,974 @@
+turbine.blade
+
+Turbine is a core language for JVM-Blade. Its goals are to sweep the
+Groovy semantics under the rug, to allow for syntactic abstraction
+powerful enough to do CPS transformations, and to allow for alternate
+syntaxes to be used inside it. However, it may not be absolutely
+perfect yet. For instance, it won't yet natively support sophisticated
+error-handling behavior, and it may suffer from JVM stack overflows.
+
+TODO: Expand upon this introduction.
+
+(The rest of the file is all commented out thanks to this line.)
+[blade impl jvm-blade groovy-eval
+	import com.rocketnia.blade.*
+	import com.rocketnia.blade.declare.*
+	import com.rocketnia.blade.parse.*
+	
+	interface Syntax extends Blade
+		{ Set< String > getFreeVariables() }
+	
+	class SyntaxCall implements Syntax {
+		final Syntax op
+		private final List< Syntax > args
+		
+		SyntaxCall( Syntax op, List< Syntax > args )
+		{
+			this.op = op
+			this.args = [] + args
+		}
+		
+		List< Syntax > getArgs() { [] + args }
+		
+		private SoftReference< Set< String > > freeVarMemo
+		Set< String > getFreeVariables()
+		{
+			def result = freeVarMemo?.get()
+			if ( result == null )
+				freeVarMemo = new SoftReference(
+					result = args*.getFreeVariables().
+						sum( op.getFreeVariables() ) )
+			
+			return result + []
+		}
+	}
+	
+	class SyntaxSym implements Syntax {
+		final String name
+		
+		SyntaxSym( String name ) { this.name = name }
+		
+		List< String > getFreeVariables() { [ name ] }
+	}
+	
+	class SyntaxLit implements Syntax {
+		final Blade value
+		
+		SyntaxLit( Blade value ) { this.value = value }
+		
+		List< String > getFreeVariables() { [] }
+	}
+	
+	class TypedSyntax { Syntype type; Syntax syntax }
+	
+	interface ExpansionContext extends Blade {}
+	
+	enum GetSetContext implements ExpansionContext
+		{ Get, Set, GetSet }
+	
+	class Syntype
+	{
+		// This should take a BladeString name, a StaticEnv, and an
+		// ExpansionContext and return a TypedSyntax.
+		Blade summoner
+		
+		// This should take an op Syntax, a BracketView body, a
+		// StaticEnv, and an ExpansionContext and return a
+		// TypedSyntax.
+		Blade invoker
+	}
+	
+	interface BladeMaybe extends Blade {}
+	class BladeJust implements BladeMaybe { Blade value }
+	@Singleton class BladeNothing implements BladeMaybe {}
+	
+	class StaticEnv implements Blade
+	{
+		Map< String, Syntype > syntypes
+		
+		// These should mape to Blade functions that take a before
+		// BracketView, a during BladeString, an after BracketView, a
+		// StaticEnv, and an ExpansionContext and return a
+		// TypedSyntax.
+		Map< String, Blade > ltrInfixes
+		Map< String, Blade > rtlInfixes
+		
+		// This should take a BracketView and return a BladeMaybe
+		// referring to the literal's Blade value.
+		Blade literalInterpreter
+		
+		StaticEnv plusSyntypes( Map< String, Syntype > newSyntypes )
+			{ new StaticEnv( syntypes: syntypes + newSyntypes ) }
+		
+		Syntype getSyntype( String name ) { syntypes[ name ] }
+		
+		Blade getLtrInfix( String chr ) { ltrInfixes[ chr ] }
+		Blade getRtlInfix( String chr ) { rtlInfixes[ chr ] }
+	}
+	
+	def calcWait
+	calcWait = { calcRef, body ->
+		
+		return BuiltIn.hardAsk( calcRef ) { calc ->
+			
+			calc = advanceCalcRepeatedly( calc, calcCall )
+			
+			if ( calc in CalcResult )
+				return body( ((CalcResult)result).value )
+			
+			return BuiltIn.hardAsk( ((CalcHardAsk)result).ref
+				) { calcWait calc, body }
+		}
+	}
+	
+	def calcCallWait = { fn, args, dynamicEnv, body -> calcWait(
+		calcCall( fn, args, dynamicEnv ),
+		body
+	) }
+	
+	def calcListWait
+	calcListWait = {
+		List doneList = [], List remainingList, Closure body ->
+		
+		if ( remainingList.isEmpty() )
+			return body( doneList )
+		
+		def calc = remainingList.head()
+		def remainingTail = remainingList.tail()
+		
+		// Closures can be used for lazy calculation of initial Calcs.
+		if ( calc in Closure )
+			calc = calc()
+		
+		return calcWait( calc
+			) { calcListWait doneList + [ it ], remainingTail, body }
+	}
+	
+	def listLeadHardAsk
+	listLeadHardAsk = {
+		List doneList = [], List remainingList, Closure body ->
+		
+		if ( remainingList.isEmpty() )
+			return body( doneList )
+		
+		def ref = remainingList.head()
+		def remainingTail = remainingList.tail()
+		
+		// Closures can be used for lazy calculation of initial Refs.
+		if ( ref in Closure )
+			ref = ref()
+		
+		return BuiltIn.leadHardAsk( ref
+			) { listHardAsk doneList + [ it ], remainingTail, body }
+	}
+	
+	def listDerivSoftAsk
+	listDerivSoftAsk = { Ref refBase, List doneList = [],
+		List remainingList, Closure body ->
+		
+		if ( remainingList.isEmpty() )
+			return body( doneList )
+		
+		def deriv = remainingList.head()
+		def remainingTail = remainingList.tail()
+		
+		// Closures can be used for lazy calculation of initial
+		// derivs.
+		if ( deriv in Closure )
+			deriv = deriv()
+		
+		return BuiltIn.softAsk( refBase, [ deriv ] ) {
+			
+			return listDerivSoftAsk(
+				refBase, doneList + [ it ], remainingTail, body )
+		}
+	}
+	
+	// These two are corecursive.
+	def anyFunctionSyntype
+	def expand
+	
+	anyFunctionSyntype = new Syntype(
+		summoner: BuiltIn.of { List< Blade > args ->
+			
+			if ( args.size() != 3 )
+				return new CalcErr( error: BladeString.of(
+						"Expected 3 arguments to anyFunctionSyntype's"
+					 + " summoner and got ${args.size()}." ) )
+			
+			// The arguments here are name, staticEnv, and
+			// expansionContext, but we're only going to use name.
+			
+			return BuiltIn.hardAsk( args[ 0 ] ) { name ->
+				
+				if ( !(name in BladeString) )
+					return new CalcErr( error: BladeString.of(
+							"The name given to anyFunctionSyntype's"
+						 + " summoner wasn't a BladeString." ) )
+				
+				return new CalcResult( new TypedSyntax(
+					type: anyFunctionSyntype,
+					syntax: new SyntaxSym(
+						((BladeString)name).toJava() )
+				)
+			}
+		},
+		invoker: BuiltIn.of {
+			List< Blade > args, DynamicEnv dynamicEnv ->
+			
+			if ( args.size() != 4 )
+				return new CalcErr( error: BladeString.of(
+						"Expected 4 arguments to anyFunctionSyntype's"
+					 + " invoker and got ${args.size()}." ) )
+			
+			def ( opRef, bodyRef, staticEnvRef, expansionContextRef
+				) = args
+			
+			return BuiltIn.hardAsk( opRef ) { op ->
+			return BuiltIn.hardAsk( bodyRef ) { body ->
+				
+				if ( !(body in BracketView) )
+					return new CalcErr( error: BladeString.of(
+							"The body given to anyFunctionSyntype's"
+						 + " invoker wasn't a BracketView." ) )
+				
+				body = (BracketView)body
+				def argViews =
+					BracketUtils.tokens( body.doc, body.brackets )
+				
+				return BuiltIn.hardAsk( staticEnvRef ) { staticEnv ->
+					
+					if ( !(staticEnv in StaticEnv) )
+						return new CalcErr( error: BladeString.of(
+								"The static environment given to"
+							 + " anyFunctionSyntype's invoker wasn't"
+							 + " a StaticEnv." ) )
+					
+					return BuiltIn.hardAsk( expansionContextRef ) {
+						expansionContext ->
+						
+						if ( expansionContext != GetSetContext.Get )
+							return new CalcErr( error: BladeString.of(
+									"The expansion context given to"
+								 + " anyFunctionSyntype's invoker"
+								 + " wasn't GetSetContext.Get." ) )
+						
+						def expandedArgLazyCalcs =
+							argViews.collect { arg -> { calcCall(
+								expand, [ arg, staticEnv ], dynamicEnv
+							) } }
+						
+						return calcListWait( expandedArgLazyCalcs ) {
+							List< TypedSyntax > expandedArgs ->
+							
+							return new CalcResult( value:
+								new TypedSyntax(
+									type: anyFunctionSyntype,
+									syntax: new SyntaxCall(
+										op, expandedArgs*.syntax )
+								)
+							)
+						}
+					}
+				}
+			} }
+		}
+	}
+	
+	// Note that the expr here should be a single, trimmed Turbine
+	// expression. In other words, it should not immediately contain
+	// whitespace (but whitespace is okay within sub-brackets).
+	//
+	// Also note that this expansion function is made to work for
+	// every GetSetContext expansion context but that it need not work
+	// well for other contexts. For instance, this should not be used
+	// for expanding a bracket-delimited argument list, since it will
+	// interpret the list as an invocation and expand the head word
+	// for evaluation.
+	//
+	// TODO: Avoid JVM recursion here.
+	// TODO: This has shallow support for any expansionContext other
+	// than GetSetContext.Get right now.
+	//
+	expand = BuiltIn.of {
+		List< Blade > args, DynamicContext dynamicContext ->
+		
+		if ( args.size() != 3 )
+			return new CalcErr( error: BladeString.of(
+					"Expected 3 arguments to expand and got"
+				 + " ${args.size()}." ) )
+		
+		def ( exprRef, staticEnvRef, expansionContextRef } = args
+		
+		return BuiltIn.hardAsk( staticEnvRef ) { staticEnv ->
+			
+			if ( !(staticEnv in StaticEnv) )
+				return new CalcErr( error: BladeString.of(
+						"The static environment given to expand must"
+					 + " be a StaticEnv." ) )
+			
+			staticEnv = (StaticEnv)staticEnv
+			
+			return calcCallWait(
+				staticEnv.interpretLiteral, [ exprRef ], dynamicEnv
+			) { BuiltIn.hardAsk( it ) { literal ->
+				
+				if ( !(literal in BladeMaybe) )
+					return new CalcErr( error: BladeString.of(
+							"The static environment given to expand"
+						 + " had an interpretLiteral that returned"
+						 + " things other than BladeMaybes." ) )
+				
+				def validateResult = { Builtin.hardAsk( it ) {
+					
+					if ( it in TypedSyntax )
+						return new CalcResult( value: it )
+					
+					return new CalcErr( error: BladeString.of(
+							"Somehow the result of expand wasn't a"
+						+ " TypedSyntax." ) )
+				} }
+				
+				if ( literal in BladeJust )
+					return validateResult( new TypedSyntax(
+						type: anyFunctionSyntype,
+						syntax: new SyntaxLit(
+							((BladeJust)literal).value )
+					) )
+				
+				return BuiltIn.hardAsk( exprRef ) { expr ->
+					
+					if ( !(expr in BracketView) )
+						return new CalcErr( error: BladeString.of(
+								"The expression given to expand"
+							 + " wasn't a BracketView." ) )
+					
+					expr = (BracketView)expr
+					
+					def path = expr.path
+					def doc = expr.doc
+					def brackets = expr.brackets
+					def first = brackets.first()
+					def last = brackets.last()
+					
+					def subexpr = { new BracketView(
+						path: path, doc: doc, brackets: it ) }
+					
+					if ( brackets.size() == 3
+						&& first.isEmpty() && last.isEmpty() )
+					{
+						def ( List op, List body ) =
+							BracketUtils.splitOffFirstToken(
+								doc, brackets[ 1 ] )
+						
+						return calcCallWait( expand, [
+							subexpr( op ),
+							staticEnv,
+							GetSetContext.Get
+						], dynamicEnv ) { TypedSyntax expandedOp ->
+							
+							return calcCallWait(
+								expandedOp.type.invoker,
+								[
+									expandedOp.syntax,
+									subexpr( body ),
+									staticEnv,
+									expansionContextRef
+								],
+								dynamicEnv,
+								validateResult
+							)
+						}
+					}
+					
+					def ( List rtlBefore, String rtlDuring,
+						List rtlAfter ) =
+						BracketUtils.splitAtLast( doc, brackets
+						) { it in String &&
+							staticEnv.getRtlInfix( it ) }
+					
+					if ( !null.is( rtlDuring ) )
+						return calcCallWait(
+							staticEnv.getRtlInfix( it ),
+							[
+								subexpr( rtlBefore ),
+								BladeString.of( rtlDuring ),
+								subexpr( rtlAfter ),
+								staticEnv,
+								expansionContextRef
+							],
+							dynamicContext,
+							validateResult
+						)
+					
+					def ( List ltrBefore, String ltrDuring,
+						List ltrAfter ) =
+						BracketUtils.splitAtFirst( doc, brackets
+						) { it in String &&
+							staticEnv.getLtrInfix( it ) }
+					
+					if ( !null.is( ltrDuring ) )
+						return calcCallWait(
+							staticEnv.getLtrInfix( it ),
+							[
+								subexpr( ltrBefore ),
+								BladeString.of( ltrDuring ),
+								subexpr( ltrAfter ),
+								staticEnv,
+								expansionContextRef
+							],
+							dynamicContext,
+							validateResult
+						)
+					
+					if ( brackets.size() != 1 )
+						return new CalcErr( error: BladeString.of(
+								"A non-literal, non-list, non-infix,"
+							 + " non-symbol Turbine form was"
+							 + " encountered." ) )
+					
+					def symbol =
+						Documents.contents( doc, brackets[ 0 ] )[ 0 ]
+					def syntype = staticEnv.getSyntype( symbol )
+					
+					if ( syntype == null )
+						throw new RuntimeException(
+							"An unbound variable was used." )
+					
+					return calcCallWait( syntype.summoner, [
+						BladeString.of( symbol ),
+						staticEnv,
+						expansionContextRef
+					], dynamicEnv, verifyResult )
+				}
+			} }
+		}
+	}
+	
+	// This takes two Blade arguments. The first is the Syntax to
+	// evaluate. The second is a function that acts as the
+	// environment to resolve SyntaxSyms by. The environment function
+	// should yield a CalcErr if the variable is unbound.
+	//
+	// NOTE: If this uses JVM recursion, that's okay. Blade code may
+	// be in-project compiled to code for platforms with stack
+	// overflows, regardless of whether the semantics of that code
+	// ostensibly disallow stack overflows. And besides, there are
+	// always other kinds of memory errors to worry about.
+	//
+	def eval
+	eval = BuiltIn.of { List< Blade > args, DynamicEnv dynamicEnv ->
+		
+		if ( args.size() != 2 )
+			return new CalcErr( error: BladeString.of(
+				"Expected 2 arguments to eval and got ${args.size()}."
+			) )
+		
+		return hardAsk( args[ 0 ] ) { expr ->
+			
+			if ( !(expr in Syntax) )
+				return new CalcErr( error: BladeString.of(
+					"The first argument to eval wasn't Syntax." ) )
+			
+			if ( expr in SyntaxSym )
+				return calcCall( args[ 1 ], [ expr ], dynamicEnv )
+			
+			if ( expr in SyntaxLit )
+				return new CalcResult(
+					value: ((SyntaxLit)expr).value )
+			
+			if ( !(expr in SyntaxCall) )
+				return new CalcErr( error: BladeString.of(
+						"The first argument to eval was an"
+					 + " unrecognized Syntax." ) )
+			
+			expr = (SyntaxCall)expr
+			def unevaluatedOpAndArgs = [ expr.op ] + expr.getArgs()
+			
+			return calcListWait(
+				unevaluatedOpAndArgs.collect { x -> { calcCall eval,
+					[ x, dynamicEnv ], dynamicEnv } }
+			) { evaluatedOpAndArgs -> calcCall(
+				evaluatedOpAndArgs.head(),
+				evaluatedOpAndArgs.tail(),
+				dynamicEnv
+			) }
+		}
+	}
+	
+	def zipMap = { List keys, List vals ->
+		
+		def result = [:]
+		keys.size().times { result[ keys[ it ] ] = vals[ it ] }
+		return result
+	}
+	
+	// Note that this is a Groovy closure (not a Blade function) which
+	// returns a Calc.
+	//
+	// Note that the body here should be a single, trimmed Turbine
+	// expression. In other words, it should not immediately contain
+	// whitespace (but whitespace is okay within sub-brackets).
+	//
+	// TODO: See if it would be better to have a SyntaxLambda. That
+	// should at least make optimizations like partial evaluation
+	// easier.
+	// TODO: Figure out whether to actually put in some partial
+	// evaluation.
+	// TODO: Figure out whether partial evaluation would play well
+	// with Calcs that otherwise aren't supposed to be called until
+	// build time is over (because they have internal side effects
+	// which hard-asking messes up).
+	// TODO: Figure out whether internal Calc side effects can be
+	// friendly with CalcErrs.
+	// TODO: If internal Calc side effects are fine, implement them.
+	// This will involve making IORefs and IOStreams and marking them
+	// so that their accesses can be checked against the dynamic
+	// context.
+	// TODO: If there's a SyntaxLambda, and even if there isn't,
+	// figure out what to do about varargs functions and lisp-style
+	// (apply ...) forms. Would we really want SyntaxCall and
+	// SyntaxLambda to have both regular arguments and rest arguments?
+	// At what point do we start needing a Blade list type (and
+	// possibly a Blade integer type) just to talk about arguments?
+	// This is where dropping the idea of an argument *list* in favor
+	// of unary functions, list arguments, and type-tagged arguments
+	// starts looking really nice, but that doesn't make sense with
+	// lisp function call syntax....
+	//
+	def constructFn = { List parms, List syntypes, BracketView body,
+		StaticEnv staticEnv ->
+		
+		if ( !parms.every { it in String } )
+			throw new IllegalArgumentException(
+				"The parameter list must be a list of strings." )
+		
+		def parmsSize = parms.size()
+		if ( parmsSize != syntypes.size() )
+			throw new IllegalArgumentException(
+					"The parameter list and syntypes weren't matched"
+				 + " up one-to-one." )
+		
+		def syntypesMap = zipMap( parms, syntypes )
+		return calcCallWait( expand, [
+			body,
+			staticEnv.plusSyntypes( syntypesMap ),
+			GetSetContext.Get
+		], dynamicEnv ) { BuiltIn.hardAsk( it ) { bodySyntax ->
+			
+			def bodyExp = ((TypedSyntax)bodySyntax).syntax
+			def closedVars = bodyExp.getFreeVariables() - parms
+			def closedVarsSize = closedVars.size()
+			
+			def closureCombinator = BuiltIn.of {
+				List< Blade > closedVals ->
+				
+				if ( closedVarsSize != closedVals.size() )
+					return new CalcErr( error: BladeString.of(
+							"The wrong number of arguments was given"
+						 + " to a Turbine closure combinator." ) )
+				
+				def lexicalEnv = zipMap( closedVars, closedVals )
+				
+				return new CalcResult( value: BuiltIn.of {
+					List< Blade > innerArgs ->
+					
+					if ( parmsSize != innerArgs.size() )
+						return new CalcErr( error: BladeString.of(
+								"The wrong number of arguments was"
+							 + " given to a Turbine closure." ) )
+					
+					def innerEnv =
+						lexicalEnv + zipMap( parms, innerArgs )
+					
+					def innerEnvFn = BuiltIn.of {
+						List< Blade > envArgs ->
+						
+						if ( envArgs.size() != 1 )
+							return new CalcErr( error: BladeString.of(
+									"Expected 1 argument to a Turbine"
+								 + " closure's inner environment and"
+								 + " got ${args.size()}." ) )
+						
+						return BuiltIn.hardAsk( envArgs[ 0 ] ) {
+							
+							def result = innerEnv[ it ]
+							
+							if ( result == null )
+								return new CalcErr( error:
+									BladeString.of(
+											"An unbound variable was"
+										 + " used." ) )
+							
+							return new CalcResult( value: result )
+						}
+					}
+					
+					return TrampolineCalcCall.to(
+						eval, [ bodyExp, innerEnvFn ], dynamicEnv )
+				} )
+			}
+			
+			return new CalcResult( value: new TypedSyntax(
+				type: anyFunctionSyntype,
+				syntax: new SyntaxCall(
+					new SyntaxLit( closureCombinator ),
+					closedVars.collect { new SyntaxSym( it ) }
+				)
+			) )
+		} }
+	}
+	
+	def turbineDefinableValueToken =
+		[ toString: { "turbine-definable-value-token" } ] as BladeKey
+	def turbineDefinableSyntypeToken =
+		[ toString: { "turbine-definable-syntype-token" } ] as
+			BladeKey
+	def turbineVisibleValueToken =
+		[ toString: { "turbine-visible-value-token" } ] as BladeKey
+	def turbineVisibleSyntypeToken =
+		[ toString: { "turbine-visible-syntype-token" } ] as BladeKey
+	
+	// TODO: See if this uses JVM recursion.
+	def sigIso
+	sigIso = BuiltIn.of { List< Blade > args ->
+		
+		if ( args.size() != 2 )
+			return new CalcErr( error: BladeString.of(
+					"Expected 2 arguments to sigIso and got"
+				 + " ${args.size()}." ) )
+		
+		return BuiltIn.hardAsk( args[ 0 ] ) { sigA ->
+			
+			if ( !(sigA in BladeKey || sigA in Sig) )
+				return new CalcErr( error: BladeString.of(
+					"The first argument to sigIso wasn't a sig." ) )
+			
+		return BuiltIn.hardAsk( args[ 1 ] ) { sigB ->
+			
+			if ( !(sigB in BladeKey || sigB in Sig) )
+				return new CalcErr( error: BladeString.of(
+					"The second argument to sigIso wasn't a sig." ) )
+			
+			if ( sigA in BladeKey && sigB in BladeKey )
+				return new CalcResult( value:
+					BladeBoolean.of( sigA == sigB ) )
+			
+			if ( !(sigA in Sig && sigB in Sig) )
+				return BladeBoolean.FALSE
+			
+			return BuiltIn.hardAsk( sigA.deriv ) { derivA ->
+				
+				if ( !(derivA in BladeKey) )
+					return new CalcErr( error: BladeString.of(
+							"There was a non-BladeKey as a deriv in a"
+						 + " sig." ) )
+				
+			return BuiltIn.hardAsk( sigB.deriv ) { derivA ->
+				
+				if ( !(derivA in BladeKey) )
+					return new CalcErr( error: BladeString.of(
+							"There was a non-BladeKey as a deriv in a"
+						 + " sig." ) )
+				
+				return calcCall( sigIso, [ derivA, derivB ]*.parent )
+			} }
+		} }
+	}
+	
+	def tlTurbineAssign = BuiltIn.of {
+		List< Blade > args, DynamicEnv dynamicEnv ->
+		
+		if ( args.size() != 1 )
+			return new CalcErr( error: BladeString.of(
+					"Expected 1 argument to turbine-assign and got"
+				 + " ${args.size()}." ) )
+		
+		return BuiltIn.hardAsk( args[ 0 ] ) { declaration ->
+			
+			if ( !(declaration in BracketView) )
+				return new CalcErr( error: BladeString.of(
+						"The argument to turbine-assign wasn't a"
+					 + " BracketView." ) )
+			
+			def view = (BracketView)declaration
+			def doc = view.doc
+			def path = view.path
+			def brackets = view.brackets
+			
+			def tokens = BracketUtils.tokens( doc, brackets )
+			
+			if ( tokens.size() != 2 )
+				return new CalcErr( error: BladeString.of(
+						"The body of a turbine-assign must be a name"
+					 + " and an expression." ) )
+			
+			def ( nameBracket, expression ) = tokens
+			
+			if ( nameBracket.size() != 1 )
+				return new CalcErr( error: BladeString.of(
+						"The name given to turbine-assign can't have"
+					 + " brackets in it." ) )
+			
+			def name =
+				Documents.contents( doc, nameBracket[ 0 ] )[ 0 ]
+			
+			// TODO: This is "point A". (See another TODO.)
+			return softAsk(
+				[ "model", "blade", path, "private",
+					turbineDefinableValueToken, name ]
+			) { Ref definableValueRef -> softAsk(
+				[ "model", "blade", path, "private",
+					turbineVisibleValueToken ]
+			) { Ref visibleValueNamespaceRef -> softAsk(
+				[ "model", "blade", path, "private",
+					turbineVisibleSyntypeToken ]
+			) { visibleSyntypeNamespaceRef -> new LeadSplit(
+				first: define(
+					[ "model", "blade", path, "private",
+						turbineDefinableSyntypeToken, name ],
+					anyFunctionSyntype
+				),
+				second: new LeadPromise(
+					filter: BuiltIn.of {
+						List< Blade > args, DynamicEnv dynamicEnv ->
+						
+						// This returns BladeBoolean.TRUE if the input
+						// sig is the same as the sig for
+						// definableValueRef or
+						// visibleValueNamespaceRef and
+						// BladeBoolean.FALSE otherwise.
+						
+						if ( args.size() != 1 )
+							return new CalcErr( error: BladeString.of(
+									"Expected 1 argument to a promise"
+								 + " filter and got ${args.size()}."
+							) )
+						
+						def ( sig ) = args
+						
+						return calcCallWait( sigIso,
+							[ definableValueRef.sig, sig ],
+							dynamicEnv ) { BladeBoolean success ->
+							
+							if ( success.value )
+								return new CalcResult( value:
+									success )
+							
+							return calcCall( sigIso, [
+								visibleValueNamespaceRef.sig, sig ] )
+						}
+					},
+					next: BuiltIn.of { List< Blade > args ->
+						
+						if ( !args.isEmpty() )
+							return new CalcErr( error: BladeString.of(
+									"Expected 0 arguments to a"
+								 + " LeadPromise continuation and got"
+								 + " ${args.size()}." ) )
+						
+						return new CalcResult(
+							value: BuiltIn.leadHardAsk(
+								visibleSyntypeNamespaceRef ) {
+								visibleSyntypeNamespace ->
+								
+								if ( !(visibleSyntypeNamespace in
+									BladeNamespace) )
+									return new CalcErr( error:
+										BladeString.of(
+												"The visible syntype"
+											 + " namespace wasn't a"
+											 + " BladeNamespace." ) )
+								
+								visibleSyntypeNamespace =
+									(BladeNamespace
+										)visibleSyntypeNamespace
+								
+								def unresolvedSyntypes = [:]
+									visibleSyntypeNamespace
+								def syntypeList = []
+								
+								visibleSyntypeNamespace.toJava().
+									each { k, v ->
+									
+									if ( !(k in BladeString) )
+										return  // continue
+									
+									unresolvedSyntypes[ k ] = v
+									syntypeList.add v
+								}
+								
+								return listLeadHardAsk(
+									syntypeList ) {
+// <tabbed-out-too-far>
+
+def syntypes = [:]
+if ( unresolvedSyntypes.any { k, v ->
+	
+	def newV = Refs.derefSoft( v )
+	
+	if ( !(newV in Syntype) )
+		return true
+	
+	syntypes[ k ] = Refs.derefSoft( v )
+	
+	return false
+} )
+	return new CalcErr( error: new BladeString.of(
+			"A value in the visible syntype namespace wasn't a"
+		 + " Syntype." ) )
+
+def staticEnv = new StaticEnv(
+	syntypes: syntypes,
+	ltrInfixes: [:],
+	rtlInfixes: [:],
+	literalInterpreter: BuiltIn.of { List< Blade > args ->
+		
+		if ( args.size() != 1 )
+			return new CalcErr( error: BladeString.of(
+					"Expected 1 argument to the base turbine-assign"
+				 + " interpreter of literals and got ${args.size()}."
+			) )
+		
+		return BuiltIn.hardAsk( args[ 0 ] ) { expr ->
+			
+			if ( !(expr in BracketView) )
+				return new CalcErr( error: BladeString.of(
+						"The argument given to the base"
+					 + " turbine-assign interpreter of literals"
+					 + " wasn't a BracketView." ) )
+			
+			// TODO: Actually implement some literals.
+			
+			return new CalcResult( value: BladeNothing.instance )
+		}
+	}
+)
+
+// TODO: See if this would be better as GetSetContext.GetSet. Making
+// this change could enable globals to have getter/setter semantics.
+return calcCallWait( expand,
+	[ expression, staticEnv, GetSetContext.Get ],
+	dynamicEnv ) { TypedSyntax expanded ->
+	
+	def syntax = expanded.syntax
+	def freeVarNames = syntax.getFreeVariables() as List
+	
+	return listDerivSoftAsk(
+		visibleValueNamespaceRef, freeVarNames ) { freeVarRefs ->
+		
+		def freeVarRefMap = zipMap( freeVarNames, freeVarRefs )
+		
+		def globalEnv = BuiltIn.of { List< Blade > args ->
+			
+			if ( args.size() != 1 )
+				return new CalcErr( error: BladeString.of(
+						"Expected 1 argument to a global environment"
+					 + " during a turbine-assign and got"
+					 + " ${args.size()}." ) )
+			
+			return BuiltIn.hardAsk( args[ 0 ] ) { sym ->
+				
+				if ( !(sym in SyntaxSym) )
+					return new CalcErr( error: BladeString.of(
+							"The argument given to a global"
+						 + " environment during a turbine-assign"
+						 + " wasn't a SyntaxSym." ) )
+				
+				def value = freeVarRefMap[ ((SyntaxSym)sym).name ]
+				if ( value == null )
+					return new CalcErr( error: BladeString.of(
+							"An unbound variable was used during a"
+						 + " turbine-assign." ) )
+				
+				return new CalcResult( value: value )
+			}
+		}
+		
+		return new LeadPromise(
+			filter: BuiltIn.of {
+				List< Blade > args, DynamicEnv dynamicEnv ->
+				
+				// This returns BladeBoolean.TRUE if the input sig is
+				// the same as the sig for definableValueRef and
+				// BladeBoolean.FALSE otherwise.
+				
+				if ( args.size() != 1 )
+					return new CalcErr( error: BladeString.of(
+							"Expected 1 argument to a promise filter"
+						 + " and got ${args.size()}." ) )
+				
+				return TrampolineCalcCall.to( sigIso, [
+					visibleValueNamespaceRef.sig, args[ 0 ] ] )
+			},
+			next: BuiltIn.of { List< Blade > args ->
+				
+				if ( !args.isEmpty() )
+					return new CalcErr( error: BladeString.of(
+							"Expected 0 arguments to a LeadPromise"
+						 + " continuation and got ${args.size()}." ) )
+				
+				return calcCallWait(
+					eval, [ syntax, globalEnv ], dynamicEnv ) {
+					
+					return new LeadDefine(
+						target: new ReflectedRef( ref:
+							definableValueRef ),
+						value: it,
+						next: BuiltIn.of { new CalcResult( value:
+							new LeadEnd() ) }
+					)
+				}
+			}
+		)
+	}
+}
+// </tabbed-out-too-far>
+								}
+							}
+						)
+					}
+				)
+			) } } }
+			// TODO: Translate the below TODO into useful comments. It
+			// was written at point A. The thing to "complete" is now
+			// almost complete (except for the promises).
+			// TODO: Complete this. It needs to soft-ask for the
+			// locally definable and locally visible value and syntype
+			// namespaces, then soft-ask for name from the locally
+			// definable value and syntype namespaces, then (maybe?)
+			// define the syntype of name, then promise not to
+			// contribute to anything but the definable value of name
+			// and the locally visible value namespace (for
+			// soft-asking from), then hard-ask for the locally
+			// visible syntype namespace, then expand the expression,
+			// then soft-ask for the free variables from the locally
+			// visible value namespace, then promise not to contribute
+			// to anything but the definable value, then evaluate the
+			// expression, then define the value.
+			//
+			// TODO: This can only define a Turbine value with the
+			// anyFunctionSyntype syntype. Make another op that
+			// defines a single Turbine value out of two others. It'll
+			// take its syntype from the first one's value, and it'll
+			// take its value from the second one's value. Note,
+			// however, that currently every turbine-assign hard-asks
+			// for all syntypes before defining what it defines, so
+			// this approach requires doing something like changing
+			// StaticEnv to be able to hold Refs in place of Syntypes.
+		}
+	}
+	
+	return softAsk(
+		[ "base", "blade", "exports", "top-level-op-token" ]
+	) { BuiltIn.leadHardAsk( it ) { topLevelOpToken -> define(
+		[ "model", "blade", path, "private", topLevelOpToken,
+			"turbine-assign" ],
+		tlTurbineAssign
+	) } }
+	
+	// TODO: We still need to set things up so that the visible
+	// namespaces are determined from the definable ones. For now,
+	// this will be accomplished through a single declaration in the
+	// Turbine-using file itself.
+]
