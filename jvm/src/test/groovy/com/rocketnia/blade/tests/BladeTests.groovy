@@ -1,6 +1,6 @@
 // BladeTests.groovy
 //
-// Copyright 2010 Ross Angle
+// Copyright 2010, 2022 Rocketnia
 //
 // This file is part of JVM-Blade.
 //
@@ -20,11 +20,16 @@
 
 package com.rocketnia.blade.tests
 
+import static org.junit.Assert.assertEquals
+
+import org.junit.jupiter.api.Test
+
 import com.rocketnia.blade.*
 
 
-class BladeTests extends GroovyTestCase
+class BladeTests
 {
+	@Test
 	void testTestResources()
 	{
 		assertEquals getResourceLines( "/resource.txt" ), [
@@ -39,6 +44,7 @@ class BladeTests extends GroovyTestCase
 		]
 	}
 	
+	@Test
 	void testTestResourceTraversal()
 	{
 		def parseProjectUrl =
@@ -55,7 +61,7 @@ class BladeTests extends GroovyTestCase
 	
 	static List getResourceLines( String filename )
 	{
-		def stream = getClass().getResourceAsStream( filename )
+		def stream = BladeTests.class.getResourceAsStream( filename )
 		
 		def lines = []
 		new InputStreamReader( stream, "UTF-8" ).
@@ -68,7 +74,7 @@ class BladeTests extends GroovyTestCase
 	
 	static File getResourceFile( String filename )
 	{
-		def url = getClass().getResource( filename )
+		def url = BladeTests.class.getResource( filename )
 		
 		if ( null.is( url ) )
 			return null

@@ -1,6 +1,6 @@
 // BladeTests.groovy
 //
-// Copyright 2010 Ross Angle
+// Copyright 2010, 2022 Rocketnia
 //
 // This file is part of JVM-Blade.
 //
@@ -20,13 +20,18 @@
 
 package com.rocketnia.blade.tests
 
+import static com.rocketnia.blade.parse.DocumentSelection.from as sel
+import static org.junit.Assert.assertEquals
+import static org.junit.Assert.assertFalse
+
+import org.junit.jupiter.api.Test
+
 import com.rocketnia.blade.parse.*
 
-import static DocumentSelection.from as sel
 
-
-class BladeParserTests extends GroovyTestCase
+class BladeParserTests
 {
+	@Test
 	void testBrackets()
 	{
 		assertEquals BladeParser.
@@ -46,6 +51,7 @@ class BladeParserTests extends GroovyTestCase
 			]
 	}
 	
+	@Test
 	void testParagraphedBrackets()
 	{
 		assertEquals BladeParser.parseParagraphedBrackets( '''

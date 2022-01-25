@@ -1,6 +1,6 @@
 // Misc.groovy
 //
-// Copyright 2010 Ross Angle
+// Copyright 2010, 2022 Rocketnia
 //
 // This file is part of JVM-Blade.
 //
@@ -212,7 +212,7 @@ final class Misc
 		
 		while ( !toGo.isEmpty() )
 		{
-			def thisFile = (File)toGo.pop()
+			def thisFile = (File)toGo.removeLast()
 			
 			if ( thisFile.isFile() )
 			{

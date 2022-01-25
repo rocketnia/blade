@@ -1,6 +1,6 @@
 // Documents.groovy
 //
-// Copyright 2010 Ross Angle
+// Copyright 2010, 2022 Rocketnia
 //
 // This file is part of JVM-Blade.
 //
@@ -159,7 +159,7 @@ class ListDocument implements Document
 			!contents.isEmpty()
 			&& ((String)contents.last()).isEmpty()
 		)
-			contents.pop()
+			contents.removeLast()
 		
 		return new ListDocument( contents )
 	}

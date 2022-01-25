@@ -1,6 +1,6 @@
 // BladeParser.groovy
 //
-// Copyright 2010 Ross Angle
+// Copyright 2010, 2022 Rocketnia
 //
 // This file is part of JVM-Blade.
 //
@@ -139,7 +139,7 @@ final class BladeParser
 				return true
 			
 			def oldResult = result
-			result = (List)pendingResults.pop()
+			result = (List)pendingResults.removeLast()
 			result.add oldResult
 			return false
 		}

@@ -1,6 +1,6 @@
 // build.gradle
 //
-// Copyright 2010 Ross Angle
+// Copyright 2010, 2022 Rocketnia
 //
 // This file is part of JVM-Blade.
 //
@@ -23,23 +23,33 @@
 // need much more configuration than this. Some of the most useful
 // tasks defined this way are "build", "clean", "eclipse", and
 // "eclipseClean".
-apply plugin: 'eclipse'
-apply plugin: 'groovy'
+plugins {
+	id 'groovy'
+	id 'java-library'
+	id 'eclipse'
+}
 
 // All our dependencies will be resolved (and downloaded, if
 // necessary) from the central Maven repository.
-repositories { mavenCentral() }
+repositories {
+	mavenCentral()
+}
 
 dependencies {
 	
 	// Gradle's Groovy plugin doesn't specify the Groovy
 	// implementation for us, so we specify it ourselves.
-	groovy 'org.codehaus.groovy:groovy:1.7.5'
+	implementation 'org.codehaus.groovy:groovy-all:3.0.8'
 	
 	// Gradle's unit test support requires us to specify a tool for
 	// that as well.
-	testCompile 'junit:junit:4.8.2'
+	testImplementation 'org.junit.jupiter:junit-jupiter:5.7.2'
 }
 
 // Make sure the jar is named blade.jar rather than jvm.jar.
 archivesBaseName = 'blade'
+
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

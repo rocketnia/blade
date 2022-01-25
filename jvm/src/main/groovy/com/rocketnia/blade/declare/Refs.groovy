@@ -1,6 +1,6 @@
 // Refs.groovy
 //
-// Copyright 2010 Ross Angle
+// Copyright 2010, 2022 Rocketnia
 //
 // This file is part of JVM-Blade.
 //
@@ -213,7 +213,7 @@ final class Refs
 		
 		while ( !nodesToGo.isEmpty() )
 		{
-			def node = derefSoft( nodesToGo.pop() )
+			def node = derefSoft( nodesToGo.removeLast() )
 			
 			if ( node in Ref )
 				return node

@@ -1,6 +1,6 @@
 // LineLocation.groovy
 //
-// Copyright 2010 Ross Angle
+// Copyright 2010, 2022 Rocketnia
 //
 // This file is part of JVM-Blade.
 //
@@ -186,7 +186,7 @@ class LineLocation
 		
 		while ( !(a.isEmpty() || b.isEmpty()) )
 		{
-			switch ( a.pop() <=> b.pop() )
+			switch ( a.removeLast() <=> b.removeLast() )
 			{
 			case 0:	break
 			case { it < 0 }: return res( a.isEmpty() ? -1 : null )
@@ -271,15 +271,15 @@ class LineLocation
 		
 		while ( !(a.isEmpty() || b.isEmpty()) )
 		{
-			def diff = a.pop() - b.pop()
+			def diff = a.removeLast() - b.removeLast()
 			if ( diff <= 0 )
 				continue
 			else if ( b.isEmpty() )
 				return res( null )
 			else
 			{
-				a.push diff
-				b.pop()
+				a.add diff
+				b.removeLast()
 			}
 		}
 		
@@ -359,7 +359,7 @@ class LineLocation
 		def bTabs = false
 		while ( !(a.isEmpty() || b.isEmpty()) )
 		{
-			def diff = a.pop() - b.pop()
+			def diff = a.removeLast() - b.removeLast()
 			if ( diff == 0 )
 			{
 				aTabs = !aTabs
@@ -381,7 +381,7 @@ class LineLocation
 				}
 				
 				aTabs = !aTabs
-				b.push -diff
+				b.add -diff
 			}
 			else
 			{
@@ -398,7 +398,7 @@ class LineLocation
 							return res( null )
 				}
 				
-				a.push diff
+				a.add diff
 				bTabs = !bTabs
 			}
 		}
@@ -499,8 +499,8 @@ class LineLocation
 		def bTabs = false
 		while ( !(a.isEmpty() || b.isEmpty()) )
 		{
-			def aCount = a.pop()
-			def bCount = b.pop()
+			def aCount = a.removeLast()
+			def bCount = b.removeLast()
 			
 			if ( aTabs == bTabs )
 			{
@@ -512,11 +512,11 @@ class LineLocation
 				else if ( aCount < bCount )
 				{
 					aTabs = !aTabs
-					b.push bCount - aCount
+					b.add bCount - aCount
 				}
 				else
 				{
-					a.push aCount - bCount
+					a.add aCount - bCount
 					bTabs = !bTabs
 				}
 			}
@@ -534,7 +534,7 @@ class LineLocation
 					)
 				}
 				
-				a.push aCount
+				a.add aCount
 				bTabs = true
 			}
 			else
@@ -546,7 +546,7 @@ class LineLocation
 					)
 				
 				aTabs = true
-				b.push bCount
+				b.add bCount
 			}
 		}
 		
@@ -667,7 +667,7 @@ class LineLocation
 			part = [] + counts
 		}
 		
-		def last = part.pop()
+		def last = part.removeLast()
 		
 		if ( part.isEmpty() )
 			return new LineLocation(
@@ -726,7 +726,7 @@ class LineLocation
 		
 		def result = [] + counts
 		if ( (result[ -1 ] -= 1) == 0 )
-			result.pop()
+			result.removeLast()
 		
 		return new LineLocation( result, mySize - 1 )
 	}
@@ -774,7 +774,7 @@ class LineLocation
 		
 		while ( !copyList.any { ((List)it).isEmpty() } )
 		{
-			def heads = ((List)copyList*.pop()).unique()
+			def heads = ((List)copyList*.removeLast()).unique()
 			
 			if ( heads.size() != 1 )
 			{
