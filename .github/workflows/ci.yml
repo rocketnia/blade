@@ -24,4 +24,4 @@ jobs:
           distribution: ${{ matrix.jdk-distribution }}
           java-version: ${{ matrix.jdk-version }}
       - name: Build
-        run: jvm/gradlew build --info
+        run: cd jvm && ./gradlew build --info
